@@ -1,8 +1,8 @@
 # Pystrip
 
 [![CI](https://github.com/pystrip/pystrip/actions/workflows/ci.yml/badge.svg)](https://github.com/pystrip/pystrip/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/pystrip.svg)](https://pypi.org/project/pystrip/)
-[![Python](https://img.shields.io/pypi/pyversions/pystrip.svg)](https://pypi.org/project/pystrip/)
+[![PyPI](https://img.shields.io/pypi/v/pystrip.svg?cacheSeconds=300)](https://pypi.org/project/pystrip/)
+[![Python](https://img.shields.io/pypi/pyversions/pystrip.svg?cacheSeconds=300)](https://pypi.org/project/pystrip/)
 [![Issues](https://img.shields.io/github/issues/pystrip/pystrip)](https://github.com/pystrip/pystrip/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/pystrip/pystrip)](https://github.com/pystrip/pystrip/pulls)
 [![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)](https://github.com/astral-sh/ruff)
