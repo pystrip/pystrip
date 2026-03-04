@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from pystrip.cli import _build_parser, _apply_cli_overrides
+from pystrip.cli import _apply_cli_overrides, _build_parser
 from pystrip.config import PyStripConfig
 
 
@@ -18,6 +18,7 @@ def test_check_mode_exit_code(tmp_path: Path) -> None:
     py_file.write_text('"""Module docstring."""\n\nx = 1\n', encoding="utf-8")
 
     import subprocess
+
     result = subprocess.run(
         [sys.executable, "-m", "pystrip", str(py_file), "--check", "--no-cache"],
         capture_output=True,
@@ -32,6 +33,7 @@ def test_check_mode_clean_exit(tmp_path: Path) -> None:
     py_file.write_text("x = 1\n", encoding="utf-8")
 
     import subprocess
+
     result = subprocess.run(
         [sys.executable, "-m", "pystrip", str(py_file), "--check", "--no-cache"],
         capture_output=True,
@@ -48,11 +50,38 @@ def test_cli_override_keep_docstrings() -> None:
     assert cfg.remove_docstrings is False
 
 
+def test_cli_override_keep_blank() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--keep-blank", "."])
+    cfg = PyStripConfig()
+    _apply_cli_overrides(cfg, args)
+    assert cfg.remove_blank_lines is False
+
+
+def test_no_recursive_flag_parses() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--no-recursive", "."])
+    assert args.recursive is False
+
+
+def test_recursive_flag_removed() -> None:
+    parser = _build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--recursive", "."])
+
+
+def test_old_blank_flag_removed() -> None:
+    parser = _build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--no-remove-blank-lines", "."])
+
+
 def test_json_output(tmp_path: Path) -> None:
     py_file = tmp_path / "test.py"
     py_file.write_text('"""Docstring."""\nx = 1\n', encoding="utf-8")
 
     import subprocess
+
     result = subprocess.run(
         [
             sys.executable,
@@ -70,3 +99,29 @@ def test_json_output(tmp_path: Path) -> None:
     data = json.loads(result.stdout)
     assert isinstance(data, list)
     assert data[0]["rule"] == "DOCSTRING_REMOVED"
+
+
+def test_verbose_prints_removed_comments_with_locations(tmp_path: Path) -> None:
+    py_file = tmp_path / "verbose_comments.py"
+    py_file.write_text("# one\nx = 1  # two\n", encoding="utf-8")
+
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pystrip",
+            str(py_file),
+            "--check",
+            "--verbose",
+            "--no-cache",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "verbose_comments.py:1:" in result.stderr
+    assert "verbose_comments.py:2:" in result.stderr
+    assert "removed 2 comment(s)." in result.stderr

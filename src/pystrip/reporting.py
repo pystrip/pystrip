@@ -51,7 +51,7 @@ def _format_json(violations: list[Violation]) -> str:
 
 
 def _format_sarif(violations: list[Violation]) -> str:
-    rules: dict[str, dict[str, str]] = {}
+    rules: dict[str, dict[str, object]] = {}
     results: list[dict[str, object]] = []
 
     for v in violations:

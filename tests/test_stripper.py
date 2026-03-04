@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from pystrip.stripper import StripConfig, strip_code
 
 
@@ -34,6 +32,17 @@ class TestCommentRemoval:
         source = "x = 1\n"
         result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
         assert result.changed is False
+
+    def test_comment_violations_recorded_with_lines(self) -> None:
+        source = "# first\nx = 1  # second\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="sample.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 2
+        assert all(v.file == "sample.py" for v in comment_violations)
+        assert {v.line for v in comment_violations} == {1, 2}
 
 
 class TestDocstringRemoval:

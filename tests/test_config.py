@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from pystrip.config import PyStripConfig, load_config
+from pystrip.config import load_config
 
 
 def test_default_config(tmp_path: Path) -> None:

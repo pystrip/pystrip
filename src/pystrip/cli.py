@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -33,17 +34,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--diff", action="store_true", help="Show unified diff")
     parser.add_argument("--in-place", action="store_true", help="Write changes back to files")
     parser.add_argument("--output-dir", type=Path, default=None, metavar="DIR")
-    parser.add_argument("--recursive", action="store_true", default=True)
+    parser.set_defaults(recursive=True)
     parser.add_argument("--no-recursive", dest="recursive", action="store_false")
     parser.add_argument("--jobs", type=int, default=None, metavar="N")
     parser.add_argument("--cache", action="store_true", default=None)
     parser.add_argument("--no-cache", dest="cache", action="store_false")
     parser.add_argument(
-        "--no-remove-blank-lines",
-        dest="remove_blank_lines",
-        action="store_false",
+        "--keep-blank",
+        dest="keep_blank",
+        action="store_true",
         default=None,
-        help="Keep blank lines introduced by comment/docstring removal",
+        help="Keep blank lines introduced by comment removal",
     )
     parser.add_argument("--config", type=Path, default=None, metavar="PATH")
     parser.add_argument(
@@ -69,8 +70,8 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.jobs = args.jobs
     if args.cache is not None:
         cfg.cache = args.cache
-    if getattr(args, "remove_blank_lines", None) is not None:
-        cfg.remove_blank_lines = args.remove_blank_lines
+    if getattr(args, "keep_blank", None):
+        cfg.remove_blank_lines = False
 
 
 def _process_file(
@@ -135,6 +136,7 @@ def _run(args: argparse.Namespace) -> None:
         cache = StripCache(project_root)
 
     all_violations: list[Violation] = []
+    violations_by_file: dict[str, list[Violation]] = defaultdict(list)
     files_changed = 0
 
     # Parallel processing
@@ -168,7 +170,7 @@ def _run(args: argparse.Namespace) -> None:
             if cached_entry:
                 all_violations.extend(
                     Violation(
-                        file=v["file"],
+                        file=str(v["file"]),
                         line=int(v["line"]),
                         column=int(v["column"]),
                         rule=str(v["rule"]),
@@ -176,6 +178,16 @@ def _run(args: argparse.Namespace) -> None:
                     )
                     for v in cached_entry.violations
                 )
+                for v in cached_entry.violations:
+                    violations_by_file[str(v["file"])].append(
+                        Violation(
+                            file=str(v["file"]),
+                            line=int(v["line"]),
+                            column=int(v["column"]),
+                            rule=str(v["rule"]),
+                            message=str(v["message"]),
+                        )
+                    )
                 if cached_entry.changed:
                     files_changed += 1
 
@@ -193,6 +205,7 @@ def _run(args: argparse.Namespace) -> None:
 
     for py_file, result in results:
         all_violations.extend(result.violations)
+        violations_by_file[str(py_file)].extend(result.violations)
 
         if result.changed:
             files_changed += 1
@@ -237,6 +250,19 @@ def _run(args: argparse.Namespace) -> None:
                     ],
                 ),
             )
+
+    if args.verbose and all_violations:
+        for violation in all_violations:
+            if violation.rule != "COMMENT_REMOVED":
+                continue
+            sys.stderr.write(
+                f"{violation.file}:{violation.line}:{violation.column} {violation.message}\n"
+            )
+
+        for file_path, file_violations in sorted(violations_by_file.items()):
+            removed_count = sum(1 for v in file_violations if v.rule == "COMMENT_REMOVED")
+            if removed_count:
+                sys.stderr.write(f"{file_path}: removed {removed_count} comment(s).\n")
 
     # Output violations
     if all_violations:

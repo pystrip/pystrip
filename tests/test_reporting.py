@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from pystrip.reporting import format_violations
 from pystrip.stripper import Violation
 

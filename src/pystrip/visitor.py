@@ -46,40 +46,62 @@ class PyStripTransformer(CSTTransformer):
     # ------------------------------------------------------------------
 
     def _strip_comment_from_line(
-        self, line: cst.EmptyLine
+        self, original_line: cst.EmptyLine, updated_line: cst.EmptyLine
     ) -> cst.EmptyLine | None:
         """Remove comment from a leading empty line.
 
         Returns None if the line was comment-only and blank-line removal is on
         (meaning the line itself should be dropped entirely).
         """
-        if line.comment is not None:
+        if original_line.comment is not None:
+            pos = self.get_metadata(PositionProvider, original_line)
+            self.violations.append(
+                Violation(
+                    file=self._filename,
+                    line=pos.start.line,
+                    column=pos.start.column,
+                    rule="COMMENT_REMOVED",
+                    message="Leading comment removed",
+                )
+            )
             if self._config.remove_blank_lines:
                 return None
-            return line.with_changes(comment=None)
-        return line
+            return updated_line.with_changes(comment=None)
+        return updated_line
 
     def _strip_trailing_comment(
-        self, trailing_whitespace: cst.TrailingWhitespace
+        self,
+        original_trailing_whitespace: cst.TrailingWhitespace,
+        updated_trailing_whitespace: cst.TrailingWhitespace,
     ) -> cst.TrailingWhitespace:
-        if trailing_whitespace.comment is not None:
-            return trailing_whitespace.with_changes(
+        if original_trailing_whitespace.comment is not None:
+            pos = self.get_metadata(PositionProvider, original_trailing_whitespace)
+            self.violations.append(
+                Violation(
+                    file=self._filename,
+                    line=pos.start.line,
+                    column=pos.start.column,
+                    rule="COMMENT_REMOVED",
+                    message="Trailing comment removed",
+                )
+            )
+            return updated_trailing_whitespace.with_changes(
                 comment=None,
                 whitespace=cst.SimpleWhitespace(""),
             )
-        return trailing_whitespace
+        return updated_trailing_whitespace
 
     # ------------------------------------------------------------------
     # Module-level
     # ------------------------------------------------------------------
 
-    def visit_Module(self, node: cst.Module) -> bool:
+    def visit_Module(self, _node: cst.Module) -> bool:
         return True
 
     def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                header=self._filter_leading_lines(updated_node.header)
+                header=self._filter_leading_lines(original_node.header, updated_node.header)
             )
 
         if self._config.remove_docstrings and updated_node.body:
@@ -123,9 +145,15 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             # Strip leading comments (drop the line entirely if it was comment-only)
-            new_trailing = self._strip_trailing_comment(updated_node.trailing_whitespace)
+            new_trailing = self._strip_trailing_comment(
+                original_node.trailing_whitespace,
+                updated_node.trailing_whitespace,
+            )
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines),
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                ),
                 trailing_whitespace=new_trailing,
             )
         return updated_node
@@ -139,7 +167,8 @@ class PyStripTransformer(CSTTransformer):
         if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
             updated_node = updated_node.with_changes(  # type: ignore[call-overload]
                 leading_lines=self._filter_leading_lines(
-                    updated_node.leading_lines  # type: ignore[union-attr]
+                    original_node.leading_lines,  # type: ignore[union-attr]
+                    updated_node.leading_lines,  # type: ignore[union-attr]
                 )
             )
         return updated_node
@@ -162,9 +191,7 @@ class PyStripTransformer(CSTTransformer):
 
         # Use original body node for metadata lookup (updated nodes not in the map)
         orig_stmts = (
-            list(original_body.body)
-            if isinstance(original_body, cst.IndentedBlock)
-            else stmts
+            list(original_body.body) if isinstance(original_body, cst.IndentedBlock) else stmts
         )
         orig_first = orig_stmts[0]
         pos = self.get_metadata(PositionProvider, orig_first)
@@ -198,11 +225,18 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
 
         if self._config.remove_docstrings:
-            new_body = self._remove_docstring_from_body(updated_node.body, original_node.body, "Function")
+            new_body = self._remove_docstring_from_body(
+                updated_node.body,
+                original_node.body,
+                "Function",
+            )
             updated_node = updated_node.with_changes(body=new_body)
 
         return updated_node
@@ -214,22 +248,31 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
 
         if self._config.remove_docstrings:
-            new_body = self._remove_docstring_from_body(updated_node.body, original_node.body, "Class")
+            new_body = self._remove_docstring_from_body(
+                updated_node.body,
+                original_node.body,
+                "Class",
+            )
             updated_node = updated_node.with_changes(body=new_body)
 
         return updated_node
 
     def _filter_leading_lines(
-        self, lines: Sequence[cst.EmptyLine]
+        self,
+        original_lines: Sequence[cst.EmptyLine],
+        updated_lines: Sequence[cst.EmptyLine],
     ) -> list[cst.EmptyLine]:
         """Strip comments from leading lines, dropping comment-only lines if configured."""
         result: list[cst.EmptyLine] = []
-        for line in lines:
-            stripped = self._strip_comment_from_line(line)
+        for original_line, updated_line in zip(original_lines, updated_lines, strict=False):
+            stripped = self._strip_comment_from_line(original_line, updated_line)
             if stripped is not None:
                 result.append(stripped)
         return result
@@ -243,7 +286,10 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
         return updated_node
 
@@ -252,7 +298,10 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
         return updated_node
 
@@ -261,7 +310,10 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
         return updated_node
 
@@ -270,7 +322,10 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
         return updated_node
 
@@ -279,6 +334,9 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(updated_node.leading_lines)
+                leading_lines=self._filter_leading_lines(
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
+                )
             )
         return updated_node
