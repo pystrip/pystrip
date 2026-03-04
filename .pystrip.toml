@@ -1,0 +1,8 @@
+[pystrip]
+remove_comments = true
+remove_docstrings = true
+exclude = ["tests/"]
+exclude_glob = ["*.generated.py"]
+line_length = 100
+jobs = 4
+cache = true
