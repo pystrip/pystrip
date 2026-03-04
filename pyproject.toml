@@ -13,6 +13,15 @@ dependencies = [
     "libcst>=1.1.0",
     "rich>=13.0.0",
 ]
+authors = [
+  { name = "Zeecka", email = "alex.garrido@protonmail.com" }
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
 
 [project.scripts]
 pystrip = "pystrip.cli:main"
