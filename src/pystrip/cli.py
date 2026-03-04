@@ -200,8 +200,8 @@ def _run(args: argparse.Namespace) -> None:
                     violations=[
                         {
                             "file": v.file,
-                            "line": str(v.line),
-                            "column": str(v.column),
+                            "line": v.line,
+                            "column": v.column,
                             "rule": v.rule,
                             "message": v.message,
                         }
