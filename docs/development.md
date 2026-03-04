@@ -3,16 +3,13 @@
 ## Local setup
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pip install pytest ruff mypy
+uv sync
 ```
 
 ## Run the CLI locally
 
 ```bash
-python -m pystrip . --check --no-cache
+uv run pystrip . --check --no-cache
 ```
 
 ## Quality checks
@@ -20,10 +17,11 @@ python -m pystrip . --check --no-cache
 Run all checks before opening a pull request:
 
 ```bash
-ruff check .
-ruff format --check .
-mypy src/pystrip
-pytest -v
+uv sync --group dev
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check src/pystrip
+uv run pytest -v
 ```
 
 ## Contributing

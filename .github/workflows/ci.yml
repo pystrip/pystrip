@@ -18,19 +18,20 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Install dependencies
-        run: |
-          pip install ruff mypy
-          pip install -e .
+        run: uv sync --group dev
 
       - name: Lint (ruff)
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Format check (ruff)
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
-      - name: Type check (mypy)
-        run: mypy src/pystrip
+      - name: Type check (ty)
+        run: uv run ty check src/pystrip
 
   test:
     name: Tests
@@ -45,10 +46,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Install dependencies
-        run: |
-          pip install pytest
-          pip install -e .
+        run: uv sync --group dev
 
       - name: Run tests
-        run: python -m pytest tests/ -v
+        run: uv run python -m pytest tests/ -v

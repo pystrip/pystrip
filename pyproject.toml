@@ -17,6 +17,13 @@ dependencies = [
 [project.scripts]
 pystrip = "pystrip.cli:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.5.0",
+    "ty>=0.0.1a12",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pystrip"]
 

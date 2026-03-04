@@ -6,7 +6,7 @@
 [![Issues](https://img.shields.io/github/issues/pystrip/pystrip)](https://github.com/pystrip/pystrip/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/pystrip/pystrip)](https://github.com/pystrip/pystrip/pulls)
 [![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)](https://github.com/astral-sh/ruff)
-[![Mypy](https://img.shields.io/badge/type%20check-mypy-2a6db2)](https://mypy-lang.org/)
+[![Ty](https://img.shields.io/badge/type%20check-ty-7c3aed)](https://github.com/astral-sh/ty)
 
 Python tool to safely remove comments and docstrings from source files using [libcst](https://libcst.readthedocs.io/).
 
