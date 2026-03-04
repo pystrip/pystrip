@@ -29,6 +29,7 @@ class StripConfig:
 
     remove_comments: bool = True
     remove_docstrings: bool = True
+    remove_blank_lines: bool = True
     filename: str = "<unknown>"
 
 

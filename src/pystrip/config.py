@@ -14,6 +14,7 @@ class PyStripConfig:
 
     remove_comments: bool = True
     remove_docstrings: bool = True
+    remove_blank_lines: bool = True
     exclude: list[str] = field(default_factory=list)
     exclude_glob: list[str] = field(default_factory=list)
     line_length: int = 100
@@ -80,6 +81,8 @@ def _apply_section(cfg: PyStripConfig, section: dict[str, Any]) -> None:
         cfg.remove_comments = bool(section["remove_comments"])
     if "remove_docstrings" in section:
         cfg.remove_docstrings = bool(section["remove_docstrings"])
+    if "remove_blank_lines" in section:
+        cfg.remove_blank_lines = bool(section["remove_blank_lines"])
     if "exclude" in section:
         cfg.exclude = list(section["exclude"])
     if "exclude_glob" in section:
