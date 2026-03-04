@@ -25,20 +25,77 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pystrip",
         description="Remove comments and docstrings from Python source files.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("paths", nargs="*", default=["."], help="Files or directories to process")
-    parser.add_argument("--exclude", action="append", default=None, metavar="PATH")
-    parser.add_argument("--exclude-glob", action="append", default=None, metavar="PATTERN")
-    parser.add_argument("--keep-docstrings", action="store_true", default=None)
-    parser.add_argument("--check", action="store_true", help="Don't modify; exit 1 if changes")
-    parser.add_argument("--diff", action="store_true", help="Show unified diff")
-    parser.add_argument("--in-place", action="store_true", help="Write changes back to files")
-    parser.add_argument("--output-dir", type=Path, default=None, metavar="DIR")
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        default=["."],
+        help="Files or directories to process",
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="Exclude a file or directory path (repeatable)",
+    )
+    parser.add_argument(
+        "--exclude-glob",
+        action="append",
+        default=None,
+        metavar="PATTERN",
+        help="Exclude paths by glob pattern (repeatable)",
+    )
+    parser.add_argument(
+        "--keep-docstrings",
+        action="store_true",
+        default=None,
+        help="Keep docstrings and only strip comments",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Do not write files; exit with code 1 if any file would change",
+    )
+    parser.add_argument(
+        "--diff",
+        action="store_true",
+        help="Print unified diffs for changed files",
+    )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Write stripped output back to each input file",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Write changed files into DIR instead of modifying inputs",
+    )
     parser.set_defaults(recursive=True)
-    parser.add_argument("--no-recursive", dest="recursive", action="store_false")
-    parser.add_argument("--jobs", type=int, default=None, metavar="N")
-    parser.add_argument("--cache", action="store_true", default=None)
-    parser.add_argument("--no-cache", dest="cache", action="store_false")
+    parser.add_argument(
+        "--no-recursive",
+        dest="recursive",
+        action="store_false",
+        help="Process only direct child files of each directory path",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Number of worker processes to use",
+    )
+    parser.add_argument(
+        "--no-cache",
+        dest="cache",
+        action="store_false",
+        default=None,
+        help="Disable cache for this run",
+    )
     parser.add_argument(
         "--keep-blank",
         dest="keep_blank",
@@ -46,15 +103,30 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Keep blank lines introduced by comment removal",
     )
-    parser.add_argument("--config", type=Path, default=None, metavar="PATH")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Load configuration from a specific TOML file",
+    )
     parser.add_argument(
         "--format",
         choices=["text", "json", "sarif", "gitlab", "github"],
         default=None,
         dest="output_format",
+        help="Output format for violations",
     )
-    parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress and summary output",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print detailed removal diagnostics",
+    )
     return parser
 
 
@@ -153,9 +225,10 @@ def _run(args: argparse.Namespace) -> None:
 
     to_process: list[Path] = []
     skipped_from_cache: list[Path] = []
+    write_mode = args.in_place or args.output_dir is not None
 
     for py_file in py_files:
-        if cache and cache.is_unchanged(py_file):
+        if cache and not write_mode and cache.is_unchanged(py_file):
             skipped_from_cache.append(py_file)
         else:
             to_process.append(py_file)
@@ -266,17 +339,32 @@ def _run(args: argparse.Namespace) -> None:
 
     # Output violations
     if all_violations:
-        output = format_violations(all_violations, fmt=output_format)
+        comment_violations = sum(1 for v in all_violations if v.rule == "COMMENT_REMOVED")
+        docstring_violations = sum(1 for v in all_violations if v.rule == "DOCSTRING_REMOVED")
+        output = format_violations(
+            all_violations,
+            fmt=output_format,
+            summary={
+                "files_changed": files_changed,
+                "total_violations": len(all_violations),
+                "comments_removed": comment_violations,
+                "docstrings_removed": docstring_violations,
+            },
+        )
         if output:
             print(output)
 
     # Summary
     if not args.quiet:
         if files_changed:
+            comment_violations = sum(1 for v in all_violations if v.rule == "COMMENT_REMOVED")
+            docstring_violations = sum(1 for v in all_violations if v.rule == "DOCSTRING_REMOVED")
             console.print(
                 f"[bold]{'Would change' if args.check else 'Changed'}[/bold] "
                 f"{files_changed} file(s), "
-                f"{len(all_violations)} violation(s)."
+                f"{len(all_violations)} violation(s), "
+                f"{docstring_violations} docstring(s), "
+                f"{comment_violations} comment(s)."
             )
         else:
             console.print("[green]All files clean.[/green]")

@@ -32,19 +32,50 @@ pip install pystrip
 pystrip . --check
 
 # Apply changes in place
-pystrip . --in-place
+pystrip ./src/ --in-place
+```
 
-# Keep docstrings; only remove comments
-pystrip . --keep-docstrings
+```bash
+usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--check] [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--no-cache] [--keep-blank]
+               [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
+               [paths ...]
 
-# Keep blank lines after comment removal
-pystrip . --keep-blank
+Remove comments and docstrings from Python source files.
 
-# Disable recursive directory walk
-pystrip . --no-recursive
+positional arguments:
+  paths                 Files or directories to process (default: ['.'])
 
-# Print each removed comment location
-pystrip . --check --verbose
+options:
+  -h, --help            show this help message and exit
+  --exclude PATH        Exclude a file or directory path (repeatable) (default: None)
+  --exclude-glob PATTERN
+                        Exclude paths by glob pattern (repeatable) (default: None)
+  --keep-docstrings     Keep docstrings and only strip comments (default: None)
+  --check               Do not write files; exit with code 1 if any file would change (default: False)
+  --diff                Print unified diffs for changed files (default: False)
+  --in-place            Write stripped output back to each input file (default: False)
+  --output-dir DIR      Write changed files into DIR instead of modifying inputs (default: None)
+  --no-recursive        Process only direct child files of each directory path (default: True)
+  --jobs N              Number of worker processes to use (default: None)
+  --no-cache            Disable cache for this run (default: None)
+  --keep-blank          Keep blank lines introduced by comment removal (default: None)
+  --config PATH         Load configuration from a specific TOML file (default: None)
+  --format {text,json,sarif,gitlab,github}
+                        Output format for violations (default: None)
+  --quiet               Suppress progress and summary output (default: False)
+  --verbose             Print detailed removal diagnostics (default: False)
+```
+
+Output example:
+
+```bash
+⠇ Processing 10 file(s)...
+src/pystrip/__init__.py:1:0: DOCSTRING_REMOVED Module docstring removed
+src/pystrip/__main__.py:1:0: DOCSTRING_REMOVED Module docstring removed
+src/pystrip/cache.py:13:4: DOCSTRING_REMOVED Class docstring removed
+...
+src/pystrip/visitor.py:1:0: DOCSTRING_REMOVED Module docstring removed
+Changed 10 file(s), 63 violation(s), 26 docstring(s), 37 comment(s).
 ```
 
 ## Configuration
