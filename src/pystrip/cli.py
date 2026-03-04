@@ -38,6 +38,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--jobs", type=int, default=None, metavar="N")
     parser.add_argument("--cache", action="store_true", default=None)
     parser.add_argument("--no-cache", dest="cache", action="store_false")
+    parser.add_argument(
+        "--no-remove-blank-lines",
+        dest="remove_blank_lines",
+        action="store_false",
+        default=None,
+        help="Keep blank lines introduced by comment/docstring removal",
+    )
     parser.add_argument("--config", type=Path, default=None, metavar="PATH")
     parser.add_argument(
         "--format",
@@ -62,6 +69,8 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.jobs = args.jobs
     if args.cache is not None:
         cfg.cache = args.cache
+    if getattr(args, "remove_blank_lines", None) is not None:
+        cfg.remove_blank_lines = args.remove_blank_lines
 
 
 def _process_file(
@@ -71,6 +80,7 @@ def _process_file(
     strip_cfg = StripConfig(
         remove_comments=cfg.remove_comments,
         remove_docstrings=cfg.remove_docstrings,
+        remove_blank_lines=cfg.remove_blank_lines,
         filename=str(py_file),
     )
     source = py_file.read_text(encoding="utf-8")
@@ -150,6 +160,24 @@ def _run(args: argparse.Namespace) -> None:
 
     if args.verbose and skipped_from_cache:
         console.print(f"[dim]Skipped {len(skipped_from_cache)} cached file(s).[/dim]")
+
+    # Restore violations from cache for unchanged files so they are always reported
+    for py_file in skipped_from_cache:
+        if cache:
+            cached_entry = cache.read(py_file)
+            if cached_entry:
+                all_violations.extend(
+                    Violation(
+                        file=v["file"],
+                        line=int(v["line"]),
+                        column=int(v["column"]),
+                        rule=str(v["rule"]),
+                        message=str(v["message"]),
+                    )
+                    for v in cached_entry.violations
+                )
+                if cached_entry.changed:
+                    files_changed += 1
 
     results: list[tuple[Path, StripResult]] = []
 
