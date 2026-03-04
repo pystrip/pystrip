@@ -95,9 +95,6 @@ class PyStripTransformer(CSTTransformer):
     # Module-level
     # ------------------------------------------------------------------
 
-    def visit_Module(self, _node: cst.Module) -> bool:
-        return True
-
     def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
         if self._config.remove_comments:
             updated_node = updated_node.with_changes(
@@ -165,10 +162,10 @@ class PyStripTransformer(CSTTransformer):
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         # For compound statements, remove leading_lines comments
         if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
-            updated_node = updated_node.with_changes(  # type: ignore[call-overload]
+            updated_node = updated_node.with_changes(
                 leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,  # type: ignore[union-attr]
-                    updated_node.leading_lines,  # type: ignore[union-attr]
+                    original_node.leading_lines,
+                    updated_node.leading_lines,
                 )
             )
         return updated_node
