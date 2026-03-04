@@ -11,7 +11,6 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from pystrip.cache import CacheEntry, StripCache
 from pystrip.config import PyStripConfig, load_config
 from pystrip.discovery import find_project_root
 from pystrip.reporting import FormatType, format_violations
@@ -90,13 +89,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of worker processes to use",
     )
     parser.add_argument(
-        "--no-cache",
-        dest="cache",
-        action="store_false",
-        default=None,
-        help="Disable cache for this run",
-    )
-    parser.add_argument(
         "--keep-blank",
         dest="keep_blank",
         action="store_true",
@@ -140,8 +132,6 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.exclude_glob = args.exclude_glob
     if args.jobs is not None:
         cfg.jobs = args.jobs
-    if args.cache is not None:
-        cfg.cache = args.cache
     if getattr(args, "keep_blank", None):
         cfg.remove_blank_lines = False
 
@@ -202,11 +192,6 @@ def _run(args: argparse.Namespace) -> None:
             console.print("[yellow]No Python files found.[/yellow]")
         sys.exit(0)
 
-    # Set up cache
-    cache: StripCache | None = None
-    if cfg.cache:
-        cache = StripCache(project_root)
-
     all_violations: list[Violation] = []
     violations_by_file: dict[str, list[Violation]] = defaultdict(list)
     files_changed = 0
@@ -223,46 +208,7 @@ def _run(args: argparse.Namespace) -> None:
             futures = [executor.submit(_process_file, f, cfg) for f in files]
             return [f.result() for f in futures]
 
-    to_process: list[Path] = []
-    skipped_from_cache: list[Path] = []
-    write_mode = args.in_place or args.output_dir is not None
-
-    for py_file in py_files:
-        if cache and not write_mode and cache.is_unchanged(py_file):
-            skipped_from_cache.append(py_file)
-        else:
-            to_process.append(py_file)
-
-    if args.verbose and skipped_from_cache:
-        console.print(f"[dim]Skipped {len(skipped_from_cache)} cached file(s).[/dim]")
-
-    # Restore violations from cache for unchanged files so they are always reported
-    for py_file in skipped_from_cache:
-        if cache:
-            cached_entry = cache.read(py_file)
-            if cached_entry:
-                all_violations.extend(
-                    Violation(
-                        file=str(v["file"]),
-                        line=int(v["line"]),
-                        column=int(v["column"]),
-                        rule=str(v["rule"]),
-                        message=str(v["message"]),
-                    )
-                    for v in cached_entry.violations
-                )
-                for v in cached_entry.violations:
-                    violations_by_file[str(v["file"])].append(
-                        Violation(
-                            file=str(v["file"]),
-                            line=int(v["line"]),
-                            column=int(v["column"]),
-                            rule=str(v["rule"]),
-                            message=str(v["message"]),
-                        )
-                    )
-                if cached_entry.changed:
-                    files_changed += 1
+    to_process = py_files
 
     results: list[tuple[Path, StripResult]] = []
 
@@ -301,28 +247,6 @@ def _run(args: argparse.Namespace) -> None:
                 out = args.output_dir / py_file.name
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(result.modified_code, encoding="utf-8")
-
-        if cache:
-            import hashlib
-
-            sha256 = hashlib.sha256(py_file.read_bytes()).hexdigest()
-            cache.write(
-                py_file,
-                CacheEntry(
-                    sha256=sha256,
-                    changed=result.changed,
-                    violations=[
-                        {
-                            "file": v.file,
-                            "line": v.line,
-                            "column": v.column,
-                            "rule": v.rule,
-                            "message": v.message,
-                        }
-                        for v in result.violations
-                    ],
-                ),
-            )
 
     if args.verbose and all_violations:
         for violation in all_violations:

@@ -9,7 +9,7 @@ uv sync
 ## Run the CLI locally
 
 ```bash
-uv run pystrip . --check --no-cache
+uv run pystrip . --check
 ```
 
 ## Quality checks

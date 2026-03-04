@@ -12,7 +12,6 @@ def test_default_config(tmp_path: Path) -> None:
     assert cfg.remove_comments is True
     assert cfg.remove_docstrings is True
     assert cfg.jobs == 1
-    assert cfg.cache is True
 
 
 def test_load_from_pyproject(tmp_path: Path) -> None:

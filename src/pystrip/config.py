@@ -19,7 +19,6 @@ class PyStripConfig:
     exclude_glob: list[str] = field(default_factory=list)
     line_length: int = 100
     jobs: int = 1
-    cache: bool = True
     config_path: Path | None = None
 
 
@@ -91,5 +90,3 @@ def _apply_section(cfg: PyStripConfig, section: dict[str, Any]) -> None:
         cfg.line_length = int(section["line_length"])
     if "jobs" in section:
         cfg.jobs = int(section["jobs"])
-    if "cache" in section:
-        cfg.cache = bool(section["cache"])

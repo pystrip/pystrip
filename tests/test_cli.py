@@ -20,7 +20,7 @@ def test_check_mode_exit_code(tmp_path: Path) -> None:
     import subprocess
 
     result = subprocess.run(
-        [sys.executable, "-m", "pystrip", str(py_file), "--check", "--no-cache"],
+        [sys.executable, "-m", "pystrip", str(py_file), "--check"],
         capture_output=True,
         text=True,
     )
@@ -35,7 +35,7 @@ def test_check_mode_clean_exit(tmp_path: Path) -> None:
     import subprocess
 
     result = subprocess.run(
-        [sys.executable, "-m", "pystrip", str(py_file), "--check", "--no-cache"],
+        [sys.executable, "-m", "pystrip", str(py_file), "--check"],
         capture_output=True,
         text=True,
     )
@@ -76,10 +76,10 @@ def test_old_blank_flag_removed() -> None:
         parser.parse_args(["--no-remove-blank-lines", "."])
 
 
-def test_cache_flag_removed() -> None:
+def test_no_cache_flag_removed() -> None:
     parser = _build_parser()
     with pytest.raises(SystemExit):
-        parser.parse_args(["--cache", "."])
+        parser.parse_args(["--no-cache", "."])
 
 
 def test_json_output(tmp_path: Path) -> None:
@@ -97,7 +97,6 @@ def test_json_output(tmp_path: Path) -> None:
             "--check",
             "--format",
             "json",
-            "--no-cache",
         ],
         capture_output=True,
         text=True,
@@ -123,7 +122,6 @@ def test_verbose_prints_removed_comments_with_locations(tmp_path: Path) -> None:
             str(py_file),
             "--check",
             "--verbose",
-            "--no-cache",
         ],
         capture_output=True,
         text=True,
@@ -135,8 +133,8 @@ def test_verbose_prints_removed_comments_with_locations(tmp_path: Path) -> None:
     assert "removed 2 comment(s)." in result.stderr
 
 
-def test_in_place_writes_even_when_cache_has_unchanged_hash(tmp_path: Path) -> None:
-    py_file = tmp_path / "in_place_cached.py"
+def test_in_place_writes_after_check_run(tmp_path: Path) -> None:
+    py_file = tmp_path / "in_place_after_check.py"
     py_file.write_text('"""Docstring."""\n# note\nx = 1\n', encoding="utf-8")
 
     import subprocess
@@ -167,7 +165,7 @@ def test_summary_includes_docstring_and_comment_counts(tmp_path: Path) -> None:
     import subprocess
 
     result = subprocess.run(
-        [sys.executable, "-m", "pystrip", str(py_file), "--check", "--no-cache"],
+        [sys.executable, "-m", "pystrip", str(py_file), "--check"],
         capture_output=True,
         text=True,
     )
