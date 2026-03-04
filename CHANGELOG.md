@@ -1,0 +1,66 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.1.0] - 2026-03-04
+
+Initial public release of **pystrip**, a `libcst`-based Python comment/docstring stripper with both CLI and library APIs.
+
+### Added
+
+- Safe CST-based transformations using `libcst` (no regex/text-based stripping).
+- CLI command `pystrip` with support for files/directories and recursive/non-recursive discovery.
+- Library API exports:
+  - `strip_code`
+  - `StripConfig`
+  - `StripResult`
+  - `Violation`
+- Comment stripping support:
+  - Standalone comments
+  - Inline comments
+- Docstring stripping support for:
+  - Module docstrings
+  - Class docstrings
+  - Function docstrings
+- Preservation of regular string literals that are not docstrings.
+- Automatic insertion of `pass` when docstring removal would leave an empty class/function/module body.
+- Machine-readable output formats:
+  - `text`
+  - `json`
+  - `sarif`
+  - `gitlab`
+  - `github`
+- CI-oriented check mode (`--check`) with deterministic summaries.
+- Diff preview mode (`--diff`).
+- Write modes:
+  - in-place (`--in-place`)
+  - output directory (`--output-dir`)
+- Config loading from:
+  - `pyproject.toml` (`[tool.pystrip]`)
+  - `.pystrip.toml` (`[pystrip]`)
+  - explicit `--config` TOML path
+- Config and CLI controls for excludes, glob excludes, docstring retention, blank-line retention, worker count, and output format.
+- Parallel file processing via configurable worker jobs.
+- Verbose diagnostics (`--verbose`) including per-comment locations and per-file removed comment counts.
+
+### Behavior
+
+- Exit codes:
+  - `0`: clean/no changes needed
+  - `1`: files would change in `--check` mode
+  - `2`: runtime/CLI error
+- Rule IDs emitted in reports:
+  - `COMMENT_REMOVED`
+  - `DOCSTRING_REMOVED`
+- Summary fields included across structured outputs:
+  - changed files
+  - total violations
+  - removed docstrings
+  - removed comments
+- Configuration precedence:
+  - defaults < `pyproject.toml` < `.pystrip.toml` < explicit `--config` < CLI overrides
+
+### Notes
+
+- `--output-dir` currently writes changed files using each input file basename (no directory structure mirroring).
+- Python requirement: `>=3.11`.
