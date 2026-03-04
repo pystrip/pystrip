@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pystrip"
+version = "0.1.0"
+description = "Remove comments and docstrings from Python source files"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "libcst>=1.1.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+pystrip = "pystrip.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pystrip"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ARG"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.pystrip]
+remove_comments = true
+remove_docstrings = true
+exclude = ["tests/"]
+exclude_glob = ["*.generated.py"]
+line_length = 100
+jobs = 4
+cache = true
