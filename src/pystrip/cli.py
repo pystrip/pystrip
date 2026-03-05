@@ -65,6 +65,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep type annotations and only strip comments/docstrings",
     )
     parser.add_argument(
+        "--keep-blank",
+        dest="keep_blank",
+        action="store_true",
+        default=None,
+        help="Keep blank lines introduced by comment removal",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Do not write files; exit with code 1 if any file would change",
@@ -99,13 +106,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="Number of worker processes to use",
-    )
-    parser.add_argument(
-        "--keep-blank",
-        dest="keep_blank",
-        action="store_true",
-        default=None,
-        help="Keep blank lines introduced by comment removal",
     )
     parser.add_argument(
         "--config",
