@@ -8,7 +8,7 @@
 [![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)](https://github.com/astral-sh/ruff)
 [![Ty](https://img.shields.io/badge/type%20check-ty-7c3aed)](https://github.com/astral-sh/ty)
 
-Python tool to safely remove comments and docstrings from source files using [libcst](https://libcst.readthedocs.io/).
+Python tool to safely remove comments, docstrings, and type annotations from source files using [libcst](https://libcst.readthedocs.io/).
 
 ## Features
 
@@ -37,11 +37,13 @@ pystrip ./src/ --in-place
 ```
 
 ```bash
-usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-type-annotations] [--check] [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--keep-blank]
-               [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
+usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments]
+               [--keep-type-annotations] [--keep-blank] [--check] [--diff] [--in-place]
+               [--output-dir DIR] [--no-recursive] [--jobs N] [--config PATH]
+               [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
                [paths ...]
 
-Remove comments and docstrings from Python source files.
+Remove comments, docstrings, and type annotations from Python source files.
 
 positional arguments:
   paths                 Files or directories to process (default: ['.'])
@@ -52,15 +54,16 @@ options:
   --exclude-glob PATTERN
                         Exclude paths by glob pattern (repeatable) (default: None)
   --keep-docstrings     Keep docstrings and only strip comments (default: None)
+  --keep-comments       Keep comments and only strip docstrings (default: None)
   --keep-type-annotations
                         Keep type annotations and only strip comments/docstrings (default: None)
+  --keep-blank          Keep blank lines introduced by comment removal (default: None)
   --check               Do not write files; exit with code 1 if any file would change (default: False)
   --diff                Print unified diffs for changed files (default: False)
   --in-place            Write stripped output back to each input file (default: False)
   --output-dir DIR      Write changed files into DIR instead of modifying inputs (default: None)
   --no-recursive        Process only direct child files of each directory path (default: True)
   --jobs N              Number of worker processes to use (default: None)
-  --keep-blank          Keep blank lines introduced by comment removal (default: None)
   --config PATH         Load configuration from a specific TOML file (default: None)
   --format {text,json,sarif,gitlab,github}
                         Output format for violations (default: None)
