@@ -53,6 +53,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep docstrings and only strip comments",
     )
     parser.add_argument(
+        "--keep-comments",
+        action="store_true",
+        default=None,
+        help="Keep comments and only strip docstrings",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Do not write files; exit with code 1 if any file would change",
@@ -126,6 +132,8 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
     """Apply CLI argument overrides to configuration."""
     if args.keep_docstrings:
         cfg.remove_docstrings = False
+    if args.keep_comments:
+        cfg.remove_comments = False
     if args.exclude is not None:
         cfg.exclude = args.exclude
     if args.exclude_glob is not None:
