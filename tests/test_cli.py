@@ -50,6 +50,14 @@ def test_cli_override_keep_docstrings() -> None:
     assert cfg.remove_docstrings is False
 
 
+def test_cli_override_keep_comments() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--keep-comments", "."])
+    cfg = PyStripConfig()
+    _apply_cli_overrides(cfg, args)
+    assert cfg.remove_comments is False
+
+
 def test_cli_override_keep_blank() -> None:
     parser = _build_parser()
     args = parser.parse_args(["--keep-blank", "."])
