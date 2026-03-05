@@ -14,6 +14,7 @@ Python tool to safely remove comments and docstrings from source files using [li
 
 - Removes comments (inline and standalone)
 - Removes docstrings (module, class, function)
+- Removes type annotations (parameter hints, return types, variable annotations)
 - Keeps regular string literals untouched
 - Supports output formats: `text`, `json`, `sarif`, `gitlab`, `github`
 - Works in CI with `--check`
@@ -36,7 +37,7 @@ pystrip ./src/ --in-place
 ```
 
 ```bash
-usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--check] [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--keep-blank]
+usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-type-annotations] [--check] [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--keep-blank]
                [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
                [paths ...]
 
@@ -51,6 +52,8 @@ options:
   --exclude-glob PATTERN
                         Exclude paths by glob pattern (repeatable) (default: None)
   --keep-docstrings     Keep docstrings and only strip comments (default: None)
+  --keep-type-annotations
+                        Keep type annotations and only strip comments/docstrings (default: None)
   --check               Do not write files; exit with code 1 if any file would change (default: False)
   --diff                Print unified diffs for changed files (default: False)
   --in-place            Write stripped output back to each input file (default: False)
@@ -73,7 +76,7 @@ src/pystrip/__init__.py:1:0: DOCSTRING_REMOVED Module docstring removed
 src/pystrip/__main__.py:1:0: DOCSTRING_REMOVED Module docstring removed
 ...
 src/pystrip/visitor.py:1:0: DOCSTRING_REMOVED Module docstring removed
-Changed 10 file(s), 63 violation(s), 26 docstring(s), 37 comment(s).
+Changed 10 file(s), 63 violation(s), 26 docstring(s), 37 comment(s), 0 annotation(s).
 ```
 
 ## Configuration
@@ -86,6 +89,7 @@ Use either `pyproject.toml` (`[tool.pystrip]`) or `.pystrip.toml` (`[pystrip]`).
 remove_comments = true
 remove_docstrings = true
 remove_blank_lines = true
+remove_type_annotations = true
 exclude = ["tests/"]
 exclude_glob = ["*.generated.py"]
 jobs = 4
