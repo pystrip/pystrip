@@ -8,6 +8,8 @@
 [![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)](https://github.com/astral-sh/ruff)
 [![Ty](https://img.shields.io/badge/type%20check-ty-7c3aed)](https://github.com/astral-sh/ty)
 
+![Banner](docs/banner.png)
+
 Python tool to safely remove comments, docstrings, and type annotations from source files using [libcst](https://libcst.readthedocs.io/).
 
 ## Features
