@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
+from pystrip import __version__
 from pystrip.stripper import Violation
 
 FormatType = Literal["text", "json", "sarif", "gitlab", "github"]
@@ -96,7 +97,7 @@ def _format_sarif(
                 "tool": {
                     "driver": {
                         "name": "pystrip",
-                        "version": "0.1.0",
+                        "version": __version__,
                         "rules": list(rules.values()),
                     }
                 },

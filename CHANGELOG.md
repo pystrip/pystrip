@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-03-05
+
+### Changed
+
+- Switched to `hatch-vcs` for dynamic version management: the package version is now derived from git tags rather than being hardcoded in `pyproject.toml`.
+- `__version__` in `src/pystrip/__init__.py` is now populated at runtime via `importlib.metadata`.
+- SARIF driver output now reflects the installed package version dynamically.
+
 ## [0.1.0] - 2026-03-04
 
 Initial public release of **pystrip**, a `libcst`-based Python comment/docstring stripper with both CLI and library APIs.
