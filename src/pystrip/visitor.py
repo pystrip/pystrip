@@ -25,6 +25,22 @@ def _is_docstring_node(node: cst.BaseStatement) -> bool:
     return isinstance(expr, (cst.SimpleString, cst.ConcatenatedString, cst.FormattedString))
 
 
+def _is_annotation_only_line(stmt: cst.BaseStatement) -> bool:
+    """Return True if stmt is a SimpleStatementLine containing only annotation-only AnnAssigns."""
+    if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    return bool(stmt.body) and all(
+        isinstance(s, cst.AnnAssign) and s.value is None for s in stmt.body
+    )
+
+
+def _filter_annotation_only_lines(
+    body: Sequence[cst.BaseStatement],
+) -> list[cst.BaseStatement]:
+    """Return body with annotation-only SimpleStatementLines removed."""
+    return [stmt for stmt in body if not _is_annotation_only_line(stmt)]
+
+
 def _make_empty_line() -> cst.EmptyLine:
     return cst.EmptyLine(indent=False, whitespace=cst.SimpleWhitespace(""))
 
@@ -129,6 +145,16 @@ class PyStripTransformer(CSTTransformer):
                         ]
                     )
 
+        if self._config.remove_type_annotations:
+            new_body = _filter_annotation_only_lines(updated_node.body)
+            if len(new_body) < len(updated_node.body):
+                if new_body:
+                    updated_node = updated_node.with_changes(body=new_body)
+                else:
+                    updated_node = updated_node.with_changes(
+                        body=[cst.SimpleStatementLine(body=[cst.Pass()])]
+                    )
+
         return updated_node
 
     # ------------------------------------------------------------------
@@ -140,6 +166,17 @@ class PyStripTransformer(CSTTransformer):
         original_node: cst.SimpleStatementLine,
         updated_node: cst.SimpleStatementLine,
     ) -> cst.BaseStatement | cst.RemovalSentinel:
+        if self._config.remove_type_annotations:
+            # For mixed lines (some annotation-only, some not), filter the annotation-only stmts.
+            # Pure annotation-only lines are handled in leave_IndentedBlock / leave_Module.
+            filtered = [
+                s
+                for s in updated_node.body
+                if not (isinstance(s, cst.AnnAssign) and s.value is None)
+            ]
+            if 0 < len(filtered) < len(updated_node.body):
+                updated_node = updated_node.with_changes(body=filtered)
+
         if self._config.remove_comments:
             # Strip leading comments (drop the line entirely if it was comment-only)
             new_trailing = self._strip_trailing_comment(
@@ -236,6 +273,19 @@ class PyStripTransformer(CSTTransformer):
             )
             updated_node = updated_node.with_changes(body=new_body)
 
+        if self._config.remove_type_annotations and updated_node.returns is not None:
+            pos = self.get_metadata(PositionProvider, original_node)
+            self.violations.append(
+                Violation(
+                    file=self._filename,
+                    line=pos.start.line,
+                    column=pos.start.column,
+                    rule="TYPE_ANNOTATION_REMOVED",
+                    message="Return type annotation removed",
+                )
+            )
+            updated_node = updated_node.with_changes(returns=None)
+
         return updated_node
 
     def leave_ClassDef(
@@ -273,6 +323,83 @@ class PyStripTransformer(CSTTransformer):
             if stripped is not None:
                 result.append(stripped)
         return result
+
+    # ------------------------------------------------------------------
+    # Type annotation removal
+    # ------------------------------------------------------------------
+
+    def leave_Param(
+        self,
+        original_node: cst.Param,
+        updated_node: cst.Param,
+    ) -> cst.Param | cst.MaybeSentinel | cst.RemovalSentinel:
+        if self._config.remove_type_annotations and updated_node.annotation is not None:
+            pos = self.get_metadata(PositionProvider, original_node)
+            self.violations.append(
+                Violation(
+                    file=self._filename,
+                    line=pos.start.line,
+                    column=pos.start.column,
+                    rule="TYPE_ANNOTATION_REMOVED",
+                    message="Parameter type annotation removed",
+                )
+            )
+            return updated_node.with_changes(annotation=None)
+        return updated_node
+
+    def leave_AnnAssign(
+        self,
+        original_node: cst.AnnAssign,
+        updated_node: cst.AnnAssign,
+    ) -> cst.BaseSmallStatement:
+        if not self._config.remove_type_annotations:
+            return updated_node
+
+        pos = self.get_metadata(PositionProvider, original_node)
+        self.violations.append(
+            Violation(
+                file=self._filename,
+                line=pos.start.line,
+                column=pos.start.column,
+                rule="TYPE_ANNOTATION_REMOVED",
+                message="Type annotation removed",
+            )
+        )
+
+        if updated_node.value is not None:
+            # x: T = v  ->  x = v
+            equal = updated_node.equal
+            if isinstance(equal, cst.AssignEqual):
+                assign_target = cst.AssignTarget(
+                    target=updated_node.target,
+                    whitespace_before_equal=equal.whitespace_before,
+                    whitespace_after_equal=equal.whitespace_after,
+                )
+            else:
+                assign_target = cst.AssignTarget(target=updated_node.target)
+            return cst.Assign(
+                targets=[assign_target],
+                value=updated_node.value,
+            )
+
+        # x: T  (no value) – return unchanged; the enclosing block handler will drop
+        # the entire SimpleStatementLine.
+        return updated_node
+
+    def leave_IndentedBlock(
+        self,
+        original_node: cst.IndentedBlock,  # noqa: ARG002
+        updated_node: cst.IndentedBlock,
+    ) -> cst.BaseSuite:
+        if not self._config.remove_type_annotations:
+            return updated_node
+        new_body = _filter_annotation_only_lines(updated_node.body)
+        if len(new_body) == len(updated_node.body):
+            return updated_node
+        if new_body:
+            return updated_node.with_changes(body=new_body)
+        # All statements were annotation-only – insert a pass to keep the block valid.
+        return updated_node.with_changes(body=[cst.SimpleStatementLine(body=[cst.Pass()])])
 
     # ------------------------------------------------------------------
     # Inline comment removal on if/for/while/with/try

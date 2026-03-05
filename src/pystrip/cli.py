@@ -59,6 +59,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep comments and only strip docstrings",
     )
     parser.add_argument(
+        "--keep-type-annotations",
+        action="store_true",
+        default=None,
+        help="Keep type annotations and only strip comments/docstrings",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Do not write files; exit with code 1 if any file would change",
@@ -134,6 +140,8 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.remove_docstrings = False
     if args.keep_comments:
         cfg.remove_comments = False
+    if getattr(args, "keep_type_annotations", None):
+        cfg.remove_type_annotations = False
     if args.exclude is not None:
         cfg.exclude = args.exclude
     if args.exclude_glob is not None:
@@ -152,6 +160,7 @@ def _process_file(
         remove_comments=cfg.remove_comments,
         remove_docstrings=cfg.remove_docstrings,
         remove_blank_lines=cfg.remove_blank_lines,
+        remove_type_annotations=cfg.remove_type_annotations,
         filename=str(py_file),
     )
     source = py_file.read_text(encoding="utf-8")
@@ -273,6 +282,9 @@ def _run(args: argparse.Namespace) -> None:
     if all_violations:
         comment_violations = sum(1 for v in all_violations if v.rule == "COMMENT_REMOVED")
         docstring_violations = sum(1 for v in all_violations if v.rule == "DOCSTRING_REMOVED")
+        annotation_violations = sum(
+            1 for v in all_violations if v.rule == "TYPE_ANNOTATION_REMOVED"
+        )
         output = format_violations(
             all_violations,
             fmt=output_format,
@@ -281,6 +293,7 @@ def _run(args: argparse.Namespace) -> None:
                 "total_violations": len(all_violations),
                 "comments_removed": comment_violations,
                 "docstrings_removed": docstring_violations,
+                "annotations_removed": annotation_violations,
             },
         )
         if output:
@@ -291,12 +304,16 @@ def _run(args: argparse.Namespace) -> None:
         if files_changed:
             comment_violations = sum(1 for v in all_violations if v.rule == "COMMENT_REMOVED")
             docstring_violations = sum(1 for v in all_violations if v.rule == "DOCSTRING_REMOVED")
+            annotation_violations = sum(
+                1 for v in all_violations if v.rule == "TYPE_ANNOTATION_REMOVED"
+            )
             console.print(
                 f"[bold]{'Would change' if args.check else 'Changed'}[/bold] "
                 f"{files_changed} file(s), "
                 f"{len(all_violations)} violation(s), "
                 f"{docstring_violations} docstring(s), "
-                f"{comment_violations} comment(s)."
+                f"{comment_violations} comment(s), "
+                f"{annotation_violations} annotation(s)."
             )
         else:
             console.print("[green]All files clean.[/green]")

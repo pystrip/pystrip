@@ -66,6 +66,14 @@ def test_cli_override_keep_blank() -> None:
     assert cfg.remove_blank_lines is False
 
 
+def test_cli_override_keep_type_annotations() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--keep-type-annotations", "."])
+    cfg = PyStripConfig()
+    _apply_cli_overrides(cfg, args)
+    assert cfg.remove_type_annotations is False
+
+
 def test_no_recursive_flag_parses() -> None:
     parser = _build_parser()
     args = parser.parse_args(["--no-recursive", "."])

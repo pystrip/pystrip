@@ -136,7 +136,8 @@ def _format_gitlab(
             f"Changed {summary.get('files_changed', 0)} file(s), "
             f"{summary.get('total_violations', 0)} violation(s), "
             f"{summary.get('docstrings_removed', 0)} docstring(s), "
-            f"{summary.get('comments_removed', 0)} comment(s)."
+            f"{summary.get('comments_removed', 0)} comment(s), "
+            f"{summary.get('annotations_removed', 0)} annotation(s)."
         )
         issues.append(
             {
@@ -166,7 +167,8 @@ def _format_github(
             f"Changed {summary.get('files_changed', 0)} file(s), "
             f"{summary.get('total_violations', 0)} violation(s), "
             f"{summary.get('docstrings_removed', 0)} docstring(s), "
-            f"{summary.get('comments_removed', 0)} comment(s)."
+            f"{summary.get('comments_removed', 0)} comment(s), "
+            f"{summary.get('annotations_removed', 0)} annotation(s)."
         )
 
     return "\n".join(lines)
