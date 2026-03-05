@@ -370,10 +370,20 @@ class PyStripTransformer(CSTTransformer):
             # x: T = v  ->  x = v
             equal = updated_node.equal
             if isinstance(equal, cst.AssignEqual):
+                ws_before = (
+                    equal.whitespace_before
+                    if isinstance(equal.whitespace_before, cst.SimpleWhitespace)
+                    else cst.SimpleWhitespace(" ")
+                )
+                ws_after = (
+                    equal.whitespace_after
+                    if isinstance(equal.whitespace_after, cst.SimpleWhitespace)
+                    else cst.SimpleWhitespace(" ")
+                )
                 assign_target = cst.AssignTarget(
                     target=updated_node.target,
-                    whitespace_before_equal=equal.whitespace_before,
-                    whitespace_after_equal=equal.whitespace_after,
+                    whitespace_before_equal=ws_before,
+                    whitespace_after_equal=ws_after,
                 )
             else:
                 assign_target = cst.AssignTarget(target=updated_node.target)
