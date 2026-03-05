@@ -90,3 +90,107 @@ class TestDocstringRemoval:
         source = 'x = 1\n"not a docstring"\n'
         result = strip_code(source, make_config(remove_comments=False, remove_docstrings=True))
         assert '"not a docstring"' in result.modified_code
+
+
+class TestTypeAnnotationRemoval:
+    def _cfg(self, **kwargs: object) -> StripConfig:
+        defaults = dict(
+            remove_comments=False, remove_docstrings=False, remove_type_annotations=True
+        )
+        defaults.update(kwargs)
+        return make_config(**defaults)
+
+    def test_removes_param_annotation(self) -> None:
+        source = "def foo(x: int) -> None:\n    pass\n"
+        result = strip_code(source, self._cfg())
+        assert ": int" not in result.modified_code
+        assert "-> None" not in result.modified_code
+        assert "def foo(x)" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_return_annotation(self) -> None:
+        source = "def foo() -> int:\n    return 1\n"
+        result = strip_code(source, self._cfg())
+        assert "-> int" not in result.modified_code
+        assert "def foo():" in result.modified_code
+
+    def test_removes_annotated_assignment_with_value(self) -> None:
+        source = "x: int = 5\n"
+        result = strip_code(source, self._cfg())
+        assert ": int" not in result.modified_code
+        assert "x = 5" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_annotation_only_statement(self) -> None:
+        source = "x: int\n"
+        result = strip_code(source, self._cfg())
+        assert "x: int" not in result.modified_code
+        assert result.changed is True
+
+    def test_annotation_only_in_function_body_inserts_pass(self) -> None:
+        source = "def foo():\n    x: int\n"
+        result = strip_code(source, self._cfg())
+        assert "x: int" not in result.modified_code
+        assert "pass" in result.modified_code
+
+    def test_annotation_only_in_class_body_inserts_pass(self) -> None:
+        source = "class Foo:\n    name: str\n"
+        result = strip_code(source, self._cfg())
+        assert "name: str" not in result.modified_code
+        assert "pass" in result.modified_code
+
+    def test_class_annotated_assignment_with_value(self) -> None:
+        source = "class Foo:\n    count: int = 0\n"
+        result = strip_code(source, self._cfg())
+        assert ": int" not in result.modified_code
+        assert "count = 0" in result.modified_code
+
+    def test_keeps_annotations_when_disabled(self) -> None:
+        source = "def foo(x: int) -> str:\n    y: bool = True\n    return str(x)\n"
+        result = strip_code(
+            source,
+            make_config(
+                remove_comments=False,
+                remove_docstrings=False,
+                remove_type_annotations=False,
+            ),
+        )
+        assert result.changed is False
+        assert ": int" in result.modified_code
+        assert "-> str" in result.modified_code
+
+    def test_violations_recorded(self) -> None:
+        source = "def foo(x: int) -> str:\n    y: bool = True\n    return str(x)\n"
+        result = strip_code(
+            source,
+            make_config(
+                remove_comments=False,
+                remove_docstrings=False,
+                remove_type_annotations=True,
+                filename="ann.py",
+            ),
+        )
+        annotation_violations = [
+            v for v in result.violations if v.rule == "TYPE_ANNOTATION_REMOVED"
+        ]
+        # x: int (param), -> str (return), y: bool = True (var)
+        assert len(annotation_violations) == 3
+        assert all(v.file == "ann.py" for v in annotation_violations)
+
+    def test_removes_multiple_params_annotations(self) -> None:
+        source = "def foo(a: int, b: str, c: float = 1.0) -> None:\n    pass\n"
+        result = strip_code(source, self._cfg())
+        assert ": int" not in result.modified_code
+        assert ": str" not in result.modified_code
+        assert ": float" not in result.modified_code
+        assert "-> None" not in result.modified_code
+        assert (
+            "def foo(a, b, c = 1.0)" in result.modified_code
+            or "def foo(a, b, c=1.0)" in result.modified_code
+        )
+
+    def test_module_annotation_only_removed(self) -> None:
+        source = "x: int\ny = 1\n"
+        result = strip_code(source, self._cfg())
+        assert "x: int" not in result.modified_code
+        assert "y = 1" in result.modified_code
