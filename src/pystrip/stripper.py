@@ -31,6 +31,8 @@ class StripConfig:
     remove_docstrings: bool = True
     remove_blank_lines: bool = True
     remove_type_annotations: bool = True
+    remove_shebang: bool = False
+    use_pass: bool = False
     filename: str = "<unknown>"
 
 

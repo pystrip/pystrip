@@ -70,10 +70,10 @@ class TestDocstringRemoval:
         assert '"keep me"' in result.modified_code
         assert result.changed is False
 
-    def test_empty_function_body_gets_pass(self) -> None:
+    def test_empty_function_body_gets_ellipsis(self) -> None:
         source = 'def foo():\n    """Only docstring."""\n'
         result = strip_code(source, make_config(remove_comments=False, remove_docstrings=True))
-        assert "pass" in result.modified_code
+        assert "..." in result.modified_code
 
     def test_violations_recorded(self) -> None:
         source = '"""Module docstring."""\n\nx = 1\n'
@@ -127,17 +127,17 @@ class TestTypeAnnotationRemoval:
         assert "x: int" not in result.modified_code
         assert result.changed is True
 
-    def test_annotation_only_in_function_body_inserts_pass(self) -> None:
+    def test_annotation_only_in_function_body_inserts_ellipsis(self) -> None:
         source = "def foo():\n    x: int\n"
         result = strip_code(source, self._cfg())
         assert "x: int" not in result.modified_code
-        assert "pass" in result.modified_code
+        assert "..." in result.modified_code
 
-    def test_annotation_only_in_class_body_inserts_pass(self) -> None:
+    def test_annotation_only_in_class_body_inserts_ellipsis(self) -> None:
         source = "class Foo:\n    name: str\n"
         result = strip_code(source, self._cfg())
         assert "name: str" not in result.modified_code
-        assert "pass" in result.modified_code
+        assert "..." in result.modified_code
 
     def test_class_annotated_assignment_with_value(self) -> None:
         source = "class Foo:\n    count: int = 0\n"
@@ -194,3 +194,81 @@ class TestTypeAnnotationRemoval:
         result = strip_code(source, self._cfg())
         assert "x: int" not in result.modified_code
         assert "y = 1" in result.modified_code
+
+
+class TestShebangHandling:
+    def test_shebang_preserved_by_default(self) -> None:
+        source = "#!/usr/bin/env python3\nx = 1\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "#!/usr/bin/env python3" in result.modified_code
+        assert result.changed is False
+
+    def test_shebang_removed_with_flag(self) -> None:
+        source = "#!/usr/bin/env python3\nx = 1\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_shebang=True),
+        )
+        assert "#!/usr/bin/env python3" not in result.modified_code
+        assert result.changed is True
+
+    def test_regular_comment_still_removed_with_shebang(self) -> None:
+        source = "#!/usr/bin/env python3\n# normal comment\nx = 1\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "#!/usr/bin/env python3" in result.modified_code
+        assert "# normal comment" not in result.modified_code
+
+
+class TestIndentedBlockFooterComments:
+    def test_removes_comment_after_last_statement_in_function(self) -> None:
+        source = "def meth(self):\n    pass\n    # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_after_last_statement_in_class_method(self) -> None:
+        source = "class Foo:\n    def meth(self):\n        pass\n        # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert result.changed is True
+
+    def test_footer_comment_violation_recorded(self) -> None:
+        source = "def foo():\n    x = 1\n    # trailing\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="f.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 3
+
+
+class TestPlaceholderStyle:
+    def test_default_uses_ellipsis_for_empty_docstring_body(self) -> None:
+        source = 'def foo():\n    """Docstring."""\n'
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=True))
+        assert "..." in result.modified_code
+        assert "pass" not in result.modified_code
+
+    def test_use_pass_flag_inserts_pass(self) -> None:
+        source = 'def foo():\n    """Docstring."""\n'
+        result = strip_code(
+            source,
+            make_config(remove_comments=False, remove_docstrings=True, use_pass=True),
+        )
+        assert "pass" in result.modified_code
+        assert "..." not in result.modified_code
+
+    def test_use_pass_for_annotation_only_body(self) -> None:
+        source = "def foo():\n    x: int\n"
+        result = strip_code(
+            source,
+            make_config(
+                remove_comments=False,
+                remove_docstrings=False,
+                remove_type_annotations=True,
+                use_pass=True,
+            ),
+        )
+        assert "pass" in result.modified_code
+        assert "..." not in result.modified_code

@@ -16,6 +16,8 @@ class PyStripConfig:
     remove_docstrings: bool = True
     remove_blank_lines: bool = True
     remove_type_annotations: bool = True
+    remove_shebang: bool = False
+    use_pass: bool = False
     exclude: list[str] = field(default_factory=list)
     exclude_glob: list[str] = field(default_factory=list)
     line_length: int = 100
@@ -85,6 +87,10 @@ def _apply_section(cfg: PyStripConfig, section: dict[str, Any]) -> None:
         cfg.remove_blank_lines = bool(section["remove_blank_lines"])
     if "remove_type_annotations" in section:
         cfg.remove_type_annotations = bool(section["remove_type_annotations"])
+    if "remove_shebang" in section:
+        cfg.remove_shebang = bool(section["remove_shebang"])
+    if "use_pass" in section:
+        cfg.use_pass = bool(section["use_pass"])
     if "exclude" in section:
         cfg.exclude = list(section["exclude"])
     if "exclude_glob" in section:
