@@ -72,6 +72,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep blank lines introduced by comment removal",
     )
     parser.add_argument(
+        "--remove-shebang",
+        action="store_true",
+        default=None,
+        help="Remove shebang lines (#!/...) from files (kept by default)",
+    )
+    parser.add_argument(
+        "--use-pass",
+        action="store_true",
+        default=None,
+        dest="use_pass",
+        help="Use 'pass' instead of '...' for empty body placeholders",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Do not write files; exit with code 1 if any file would change",
@@ -150,6 +163,10 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.jobs = args.jobs
     if getattr(args, "keep_blank", None):
         cfg.remove_blank_lines = False
+    if getattr(args, "remove_shebang", None):
+        cfg.remove_shebang = True
+    if getattr(args, "use_pass", None):
+        cfg.use_pass = True
 
 
 def _process_file(
@@ -161,6 +178,8 @@ def _process_file(
         remove_docstrings=cfg.remove_docstrings,
         remove_blank_lines=cfg.remove_blank_lines,
         remove_type_annotations=cfg.remove_type_annotations,
+        remove_shebang=cfg.remove_shebang,
+        use_pass=cfg.use_pass,
         filename=str(py_file),
     )
     source = py_file.read_text(encoding="utf-8")

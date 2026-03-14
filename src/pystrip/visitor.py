@@ -61,6 +61,12 @@ class PyStripTransformer(CSTTransformer):
     # Comment removal
     # ------------------------------------------------------------------
 
+    def _make_placeholder_stmt(self) -> cst.SimpleStatementLine:
+        """Return a ``pass`` or ``...`` placeholder for an otherwise-empty body."""
+        if self._config.use_pass:
+            return cst.SimpleStatementLine(body=[cst.Pass()])
+        return cst.SimpleStatementLine(body=[cst.Expr(value=cst.Ellipsis())])
+
     def _strip_comment_from_line(
         self, original_line: cst.EmptyLine, updated_line: cst.EmptyLine
     ) -> cst.EmptyLine | None:
@@ -70,6 +76,9 @@ class PyStripTransformer(CSTTransformer):
         (meaning the line itself should be dropped entirely).
         """
         if original_line.comment is not None:
+            # Preserve shebang lines unless remove_shebang is set
+            if original_line.comment.value.startswith("#!") and not self._config.remove_shebang:
+                return updated_line
             pos = self.get_metadata(PositionProvider, original_line)
             self.violations.append(
                 Violation(
@@ -138,11 +147,7 @@ class PyStripTransformer(CSTTransformer):
                     updated_node = updated_node.with_changes(body=remaining)
                 else:
                     updated_node = updated_node.with_changes(
-                        body=[
-                            cst.SimpleStatementLine(
-                                body=[cst.Pass()],
-                            )
-                        ]
+                        body=[self._make_placeholder_stmt()]
                     )
 
         if self._config.remove_type_annotations:
@@ -152,7 +157,7 @@ class PyStripTransformer(CSTTransformer):
                     updated_node = updated_node.with_changes(body=new_body)
                 else:
                     updated_node = updated_node.with_changes(
-                        body=[cst.SimpleStatementLine(body=[cst.Pass()])]
+                        body=[self._make_placeholder_stmt()]
                     )
 
         return updated_node
@@ -243,14 +248,8 @@ class PyStripTransformer(CSTTransformer):
             if self._config.remove_blank_lines and hasattr(remaining[0], "leading_lines"):
                 remaining[0] = remaining[0].with_changes(leading_lines=[])
             return body.with_changes(body=remaining)
-        # Body would be empty - insert pass
-        return body.with_changes(
-            body=[
-                cst.SimpleStatementLine(
-                    body=[cst.Pass()],
-                )
-            ]
-        )
+        # Body would be empty - insert placeholder
+        return body.with_changes(body=[self._make_placeholder_stmt()])
 
     def leave_FunctionDef(
         self,
@@ -398,9 +397,14 @@ class PyStripTransformer(CSTTransformer):
 
     def leave_IndentedBlock(
         self,
-        original_node: cst.IndentedBlock,  # noqa: ARG002
+        original_node: cst.IndentedBlock,
         updated_node: cst.IndentedBlock,
     ) -> cst.BaseSuite:
+        if self._config.remove_comments and original_node.footer:
+            updated_node = updated_node.with_changes(
+                footer=self._filter_leading_lines(original_node.footer, updated_node.footer)
+            )
+
         if not self._config.remove_type_annotations:
             return updated_node
         new_body = _filter_annotation_only_lines(updated_node.body)
@@ -408,8 +412,8 @@ class PyStripTransformer(CSTTransformer):
             return updated_node
         if new_body:
             return updated_node.with_changes(body=new_body)
-        # All statements were annotation-only – insert a pass to keep the block valid.
-        return updated_node.with_changes(body=[cst.SimpleStatementLine(body=[cst.Pass()])])
+        # All statements were annotation-only – insert a placeholder to keep the block valid.
+        return updated_node.with_changes(body=[self._make_placeholder_stmt()])
 
     # ------------------------------------------------------------------
     # Inline comment removal on if/for/while/with/try

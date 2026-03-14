@@ -189,3 +189,37 @@ def test_summary_includes_docstring_and_comment_counts(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "1 docstring(s)" in result.stderr
     assert "1 comment(s)" in result.stderr
+
+
+def test_cli_override_remove_shebang() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--remove-shebang", "."])
+    cfg = PyStripConfig()
+    _apply_cli_overrides(cfg, args)
+    assert cfg.remove_shebang is True
+
+
+def test_cli_override_use_pass() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--use-pass", "."])
+    cfg = PyStripConfig()
+    _apply_cli_overrides(cfg, args)
+    assert cfg.use_pass is True
+
+
+def test_shebang_preserved_by_default(tmp_path: Path) -> None:
+    """Shebang lines should be kept by default even with --in-place."""
+    py_file = tmp_path / "shebang.py"
+    py_file.write_text("#!/usr/bin/env python3\n# comment\nx = 1\n", encoding="utf-8")
+
+    import subprocess
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", str(py_file), "--in-place"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    updated = py_file.read_text(encoding="utf-8")
+    assert "#!/usr/bin/env python3" in updated
+    assert "# comment" not in updated
