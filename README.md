@@ -39,13 +39,11 @@ pystrip ./src/ --in-place
 ```
 
 ```bash
-usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments]
-               [--keep-type-annotations] [--keep-blank] [--check] [--diff] [--in-place]
-               [--output-dir DIR] [--no-recursive] [--jobs N] [--config PATH]
-               [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
+usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments] [--keep-type-annotations] [--keep-blank] [--remove-shebang] [--use-pass] [--check]
+               [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
                [paths ...]
 
-Remove comments, docstrings, and type annotations from Python source files.
+Remove comments and docstrings from Python source files.
 
 positional arguments:
   paths                 Files or directories to process (default: ['.'])
@@ -60,6 +58,8 @@ options:
   --keep-type-annotations
                         Keep type annotations and only strip comments/docstrings (default: None)
   --keep-blank          Keep blank lines introduced by comment removal (default: None)
+  --remove-shebang      Remove shebang lines (#!/...) from files (kept by default) (default: None)
+  --use-pass            Use 'pass' instead of '...' for empty body placeholders (default: None)
   --check               Do not write files; exit with code 1 if any file would change (default: False)
   --diff                Print unified diffs for changed files (default: False)
   --in-place            Write stripped output back to each input file (default: False)
