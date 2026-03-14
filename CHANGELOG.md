@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-03-14
+
+### Changed
+
+- Fix trailing comment stripping
+- Use `...` as empty-body placeholder, option `--use-pass` to use `pass` instead of `...`
+
+### Added
+
+- Preserve shebangs by default, option `--remove-shebang` to force shebang removal
+
 ## [1.0.0] - 2026-03-05
 
 ### Changed

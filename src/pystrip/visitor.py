@@ -146,9 +146,7 @@ class PyStripTransformer(CSTTransformer):
                 if remaining:
                     updated_node = updated_node.with_changes(body=remaining)
                 else:
-                    updated_node = updated_node.with_changes(
-                        body=[self._make_placeholder_stmt()]
-                    )
+                    updated_node = updated_node.with_changes(body=[self._make_placeholder_stmt()])
 
         if self._config.remove_type_annotations:
             new_body = _filter_annotation_only_lines(updated_node.body)
@@ -156,9 +154,7 @@ class PyStripTransformer(CSTTransformer):
                 if new_body:
                     updated_node = updated_node.with_changes(body=new_body)
                 else:
-                    updated_node = updated_node.with_changes(
-                        body=[self._make_placeholder_stmt()]
-                    )
+                    updated_node = updated_node.with_changes(body=[self._make_placeholder_stmt()])
 
         return updated_node
 
