@@ -9,6 +9,14 @@ description = "Remove comments and docstrings from Python source files"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
+keywords = [
+    "python",
+    "comments",
+    "docstrings",
+    "type-annotations",
+    "strip",
+    "libcst"
+]
 dependencies = [
     "libcst>=1.1.0",
     "rich>=13.0.0",
@@ -22,6 +30,13 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pystrip/pystrip"
+Repository = "https://github.com/pystrip/pystrip"
+Issues = "https://github.com/pystrip/pystrip/issues"
+Changelog = "https://github.com/pystrip/pystrip/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/pystrip/pystrip#readme"
 
 [project.scripts]
 pystrip = "pystrip.cli:main"

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-03-14
+
+### Changed
+
+- Validate configuration types and values strictly; invalid config now fails fast with clear errors instead of being silently ignored.
+
+### Added
+
+- Add `--continue-on-error` CLI mode to report per-file processing failures while continuing other files; runs still exit with code `2` when any processing error occurs.
+- Add stdin/stdout mode via `pystrip -`, with stripped code written to stdout in normal mode and violation reporting preserved in `--check` mode.
+
 ## [1.1.0] - 2026-03-14
 
 ### Changed

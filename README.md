@@ -22,6 +22,16 @@ Python tool to safely remove comments, docstrings, and type annotations from sou
 - Works in CI with `--check`
 - Supports config discovery and parallel processing
 
+## What pystrip will not remove
+
+- String literals that are not docstrings. A string only counts as a docstring when it is the first statement in a module, class, or function body.
+- String literals that merely look like comments, such as `"value # not a comment"`.
+- Arbitrary strings later in a body, even if they are standalone expression statements.
+- Shebang lines like `#!/usr/bin/env python3` unless `--remove-shebang` is set.
+- Files that fail to parse as Python. By default the run stops on the first such error; with `--continue-on-error`, pystrip reports the failure and keeps processing other files.
+
+Docstring detection is syntax-based, not text-based. That means pystrip does not try to guess intent from quote style or wording; it only removes a literal string expression in the docstring position.
+
 ## Installation
 
 ```bash
@@ -36,11 +46,15 @@ pystrip . --check
 
 # Apply changes in place
 pystrip ./src/ --in-place
+
+# Read from stdin and write stripped code to stdout
+pystrip - < input.py > output.py
 ```
 
 ```bash
 usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments] [--keep-type-annotations] [--keep-blank] [--remove-shebang] [--use-pass] [--check]
                [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
+               [--continue-on-error]
                [paths ...]
 
 Remove comments and docstrings from Python source files.
@@ -71,6 +85,7 @@ options:
                         Output format for violations (default: None)
   --quiet               Suppress progress and summary output (default: False)
   --verbose             Print detailed removal diagnostics (default: False)
+  --continue-on-error   Continue processing remaining files when a file fails to parse/process (default: False)
 ```
 
 Output example:
@@ -84,10 +99,13 @@ src/pystrip/visitor.py:1:0: DOCSTRING_REMOVED Module docstring removed
 Changed 10 file(s), 63 violation(s), 26 docstring(s), 37 comment(s), 0 annotation(s).
 ```
 
+When using `-` as the sole input path, pystrip reads source from stdin. In normal mode it writes stripped code to stdout; in `--check` mode it emits violations instead. `--in-place`, `--output-dir`, and `--diff` are not available with stdin input.
+
 ## Configuration
 
 Use either `pyproject.toml` (`[tool.pystrip]`) or `.pystrip.toml` (`[pystrip]`).
 `pyproject.toml` is recommended when pystrip is part of a project; `.pystrip.toml` is useful for standalone usage.
+Invalid config values (for example `jobs = "4"`) fail fast with exit code `2` and a clear error message.
 
 ```toml
 [tool.pystrip]

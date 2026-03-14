@@ -207,6 +207,12 @@ def test_cli_override_use_pass() -> None:
     assert cfg.use_pass is True
 
 
+def test_continue_on_error_flag_parses() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--continue-on-error", "."])
+    assert args.continue_on_error is True
+
+
 def test_shebang_preserved_by_default(tmp_path: Path) -> None:
     """Shebang lines should be kept by default even with --in-place."""
     py_file = tmp_path / "shebang.py"
@@ -223,3 +229,109 @@ def test_shebang_preserved_by_default(tmp_path: Path) -> None:
     updated = py_file.read_text(encoding="utf-8")
     assert "#!/usr/bin/env python3" in updated
     assert "# comment" not in updated
+
+
+def test_invalid_config_exits_2_with_error_message(tmp_path: Path) -> None:
+    py_file = tmp_path / "test.py"
+    py_file.write_text("x = 1\n", encoding="utf-8")
+
+    bad_cfg = tmp_path / "bad.toml"
+    bad_cfg.write_text(
+        """
+[pystrip]
+jobs = "many"
+""",
+        encoding="utf-8",
+    )
+
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pystrip",
+            str(py_file),
+            "--config",
+            str(bad_cfg),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "Invalid 'jobs'" in result.stderr
+
+
+def test_continue_on_error_processes_remaining_files(tmp_path: Path) -> None:
+    valid = tmp_path / "valid.py"
+    valid.write_text('"""Doc."""\nx = 1\n', encoding="utf-8")
+
+    broken = tmp_path / "broken.py"
+    broken.write_text("def oops(:\n    pass\n", encoding="utf-8")
+
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pystrip",
+            str(valid),
+            str(broken),
+            "--check",
+            "--continue-on-error",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "DOCSTRING_REMOVED" in result.stdout
+    assert "Failed to parse" in result.stderr
+
+
+def test_stdin_mode_writes_stripped_code_to_stdout() -> None:
+    import subprocess
+
+    source = '"""Doc."""\n# note\nx = 1  # trailing\n'
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", "-"],
+        input=source,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == "x = 1\n"
+    assert "Changed 1 file(s)" in result.stderr
+
+
+def test_stdin_mode_check_outputs_violations() -> None:
+    import subprocess
+
+    source = '"""Doc."""\nx = 1\n'
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", "-", "--check"],
+        input=source,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "DOCSTRING_REMOVED" in result.stdout
+    assert "Would change 1 file(s)" in result.stderr
+
+
+def test_stdin_mode_rejects_in_place() -> None:
+    import subprocess
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", "-", "--in-place"],
+        input="x = 1\n",
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "--in-place cannot be used with stdin input" in result.stderr

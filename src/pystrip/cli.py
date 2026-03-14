@@ -11,7 +11,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from pystrip.config import PyStripConfig, load_config
+from pystrip.config import ConfigError, PyStripConfig, load_config
 from pystrip.discovery import find_project_root
 from pystrip.reporting import FormatType, format_violations
 from pystrip.stripper import StripConfig, StripResult, Violation, strip_code
@@ -144,6 +144,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print detailed removal diagnostics",
     )
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Continue processing remaining files when a file fails to parse/process",
+    )
     return parser
 
 
@@ -187,6 +192,20 @@ def _process_file(
     return py_file, result
 
 
+def _process_stdin(cfg: PyStripConfig) -> StripResult:
+    strip_cfg = StripConfig(
+        remove_comments=cfg.remove_comments,
+        remove_docstrings=cfg.remove_docstrings,
+        remove_blank_lines=cfg.remove_blank_lines,
+        remove_type_annotations=cfg.remove_type_annotations,
+        remove_shebang=cfg.remove_shebang,
+        use_pass=cfg.use_pass,
+        filename="<stdin>",
+    )
+    source = sys.stdin.read()
+    return strip_code(source, strip_cfg)
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -194,6 +213,10 @@ def main() -> None:
     try:
         _run(args)
     except KeyboardInterrupt:
+        sys.exit(2)
+    except ConfigError as exc:
+        if not args.quiet:
+            console.print(f"[red]Error:[/red] {exc}")
         sys.exit(2)
     except Exception as exc:
         console.print_exception()
@@ -205,6 +228,16 @@ def main() -> None:
 def _run(args: argparse.Namespace) -> None:
     output_format: FormatType = args.output_format or "text"
 
+    use_stdin = args.paths == ["-"]
+    if "-" in args.paths and not use_stdin:
+        raise ValueError("'-' can only be used as the sole input path")
+    if use_stdin and args.in_place:
+        raise ValueError("--in-place cannot be used with stdin input")
+    if use_stdin and args.output_dir is not None:
+        raise ValueError("--output-dir cannot be used with stdin input")
+    if use_stdin and args.diff:
+        raise ValueError("--diff cannot be used with stdin input")
+
     # Discover project root
     project_root = find_project_root()
 
@@ -215,48 +248,75 @@ def _run(args: argparse.Namespace) -> None:
     _apply_cli_overrides(cfg, args)
 
     # Collect files
-    input_paths = [Path(p) for p in args.paths]
-    py_files = collect_python_files(
-        paths=input_paths,
-        recursive=args.recursive,
-        exclude=cfg.exclude,
-        exclude_glob=cfg.exclude_glob,
-    )
+    py_files: list[Path] = []
+    if not use_stdin:
+        input_paths = [Path(p) for p in args.paths]
+        py_files = collect_python_files(
+            paths=input_paths,
+            recursive=args.recursive,
+            exclude=cfg.exclude,
+            exclude_glob=cfg.exclude_glob,
+        )
 
-    if not py_files:
-        if not args.quiet:
-            console.print("[yellow]No Python files found.[/yellow]")
-        sys.exit(0)
+        if not py_files:
+            if not args.quiet:
+                console.print("[yellow]No Python files found.[/yellow]")
+            sys.exit(0)
 
     all_violations: list[Violation] = []
     violations_by_file: dict[str, list[Violation]] = defaultdict(list)
     files_changed = 0
+    processing_errors: list[tuple[Path, Exception]] = []
 
     # Parallel processing
     jobs = max(1, cfg.jobs)
 
     def process_files(
         files: list[Path],
-    ) -> list[tuple[Path, StripResult]]:
+    ) -> tuple[list[tuple[Path, StripResult]], list[tuple[Path, Exception]]]:
+        results: list[tuple[Path, StripResult]] = []
+        errors: list[tuple[Path, Exception]] = []
+
         if jobs == 1 or len(files) == 1:
-            return [_process_file(f, cfg) for f in files]
+            for file_path in files:
+                try:
+                    results.append(_process_file(file_path, cfg))
+                except Exception as exc:
+                    if not args.continue_on_error:
+                        raise
+                    errors.append((file_path, exc))
+            return results, errors
+
         with ProcessPoolExecutor(max_workers=jobs) as executor:
             futures = [executor.submit(_process_file, f, cfg) for f in files]
-            return [f.result() for f in futures]
-
-    to_process = py_files
+            for file_path, future in zip(files, futures, strict=False):
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    if not args.continue_on_error:
+                        raise
+                    errors.append((file_path, exc))
+            return results, errors
 
     results: list[tuple[Path, StripResult]] = []
 
-    if to_process:
+    if use_stdin:
+        try:
+            stdin_result = _process_stdin(cfg)
+            results = [(Path("<stdin>"), stdin_result)]
+        except Exception as exc:
+            if not args.continue_on_error:
+                raise
+            processing_errors = [(Path("<stdin>"), exc)]
+    elif py_files:
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console,
             disable=args.quiet,
         ) as progress:
-            progress.add_task(f"Processing {len(to_process)} file(s)...", total=None)
-            results = process_files(to_process)
+            progress.add_task(f"Processing {len(py_files)} file(s)...", total=None)
+            results, processing_errors = process_files(py_files)
 
     for py_file, result in results:
         all_violations.extend(result.violations)
@@ -284,6 +344,9 @@ def _run(args: argparse.Namespace) -> None:
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(result.modified_code, encoding="utf-8")
 
+    if use_stdin and results and not args.check and not processing_errors:
+        sys.stdout.write(results[0][1].modified_code)
+
     if args.verbose and all_violations:
         for violation in all_violations:
             if violation.rule != "COMMENT_REMOVED":
@@ -297,8 +360,12 @@ def _run(args: argparse.Namespace) -> None:
             if removed_count:
                 sys.stderr.write(f"{file_path}: removed {removed_count} comment(s).\n")
 
+    if processing_errors:
+        for file_path, exc in processing_errors:
+            sys.stderr.write(f"{file_path}: {exc}\n")
+
     # Output violations
-    if all_violations:
+    if all_violations and not (use_stdin and not args.check):
         comment_violations = sum(1 for v in all_violations if v.rule == "COMMENT_REMOVED")
         docstring_violations = sum(1 for v in all_violations if v.rule == "DOCSTRING_REMOVED")
         annotation_violations = sum(
@@ -336,6 +403,9 @@ def _run(args: argparse.Namespace) -> None:
             )
         else:
             console.print("[green]All files clean.[/green]")
+
+    if processing_errors:
+        sys.exit(2)
 
     if args.check and files_changed:
         sys.exit(1)
