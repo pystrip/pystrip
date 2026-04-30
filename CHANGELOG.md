@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-04-30
+
+### Fixed
+
+- Inline comments on compound statement header lines (`if`, `for`, `while`, `with`, `try`, `def`, `class`) are now correctly removed. Previously these comments were silently kept because they live in `IndentedBlock.header` rather than the statement's own leading lines.
+
 ## [1.2.0] - 2026-03-14
 
 ### Changed

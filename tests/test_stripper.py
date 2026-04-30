@@ -243,6 +243,76 @@ class TestIndentedBlockFooterComments:
         assert comment_violations[0].line == 3
 
 
+class TestInlineCommentOnCompoundStatement:
+    """Regression tests for inline comments on compound statement header lines."""
+
+    def test_removes_inline_comment_on_if(self) -> None:
+        source = "if x:  # if comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# if comment" not in result.modified_code
+        assert "if x:" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_for(self) -> None:
+        source = "for i in lst:  # for comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# for comment" not in result.modified_code
+        assert "for i in lst:" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_while(self) -> None:
+        source = "while cond:  # while comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# while comment" not in result.modified_code
+        assert "while cond:" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_with(self) -> None:
+        source = "with open('f') as fh:  # with comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# with comment" not in result.modified_code
+        assert "with open('f') as fh:" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_try(self) -> None:
+        source = "try:  # try comment\n    pass\nexcept Exception:\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# try comment" not in result.modified_code
+        assert "try:" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_def(self) -> None:
+        source = "def foo():  # def comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# def comment" not in result.modified_code
+        assert "def foo():" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_class(self) -> None:
+        source = "class Foo:  # class comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# class comment" not in result.modified_code
+        assert "class Foo:" in result.modified_code
+        assert result.changed is True
+
+    def test_violation_recorded_for_compound_inline_comment(self) -> None:
+        source = "if x:  # check\n    pass\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="t.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 1
+        assert comment_violations[0].file == "t.py"
+
+    def test_no_change_when_remove_comments_disabled(self) -> None:
+        source = "if x:  # comment\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=False))
+        assert "# comment" in result.modified_code
+        assert result.changed is False
+
+
 class TestPlaceholderStyle:
     def test_default_uses_ellipsis_for_empty_docstring_body(self) -> None:
         source = 'def foo():\n    """Docstring."""\n'

@@ -396,6 +396,10 @@ class PyStripTransformer(CSTTransformer):
         original_node: cst.IndentedBlock,
         updated_node: cst.IndentedBlock,
     ) -> cst.BaseSuite:
+        if self._config.remove_comments:
+            new_header = self._strip_trailing_comment(original_node.header, updated_node.header)
+            updated_node = updated_node.with_changes(header=new_header)
+
         if self._config.remove_comments and original_node.footer:
             updated_node = updated_node.with_changes(
                 footer=self._filter_leading_lines(original_node.footer, updated_node.footer)
