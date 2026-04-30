@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-04-30
+
+### Fixed
+
+- Inline comments on one-liner compound statements (`def foo(): pass  # comment`, `class Foo: pass  # comment`, `if x: pass  # comment`, etc.) are now correctly removed. Previously these were silently kept because the comment lives in `SimpleStatementSuite.trailing_whitespace` rather than any statement-level node that was already visited.
+
+## [1.3.1] - 2026-04-30
+
+### Fixed
+
+- Inline comments on decorator lines (`@decorator  # comment`) are now correctly removed.
+- Standalone comments between decorators are now correctly removed.
+- Inline and standalone comments inside parenthesized expressions (multiline function parameters, function call arguments, `if`/`while` conditions, `with` items, class bases, and any other parenthesized expression) are now correctly removed.
+
 ## [1.3.0] - 2026-04-30
 
 ### Fixed

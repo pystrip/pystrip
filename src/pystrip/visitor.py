@@ -391,6 +391,19 @@ class PyStripTransformer(CSTTransformer):
         # the entire SimpleStatementLine.
         return updated_node
 
+    def leave_SimpleStatementSuite(
+        self,
+        original_node: cst.SimpleStatementSuite,
+        updated_node: cst.SimpleStatementSuite,
+    ) -> cst.BaseSuite:
+        if self._config.remove_comments:
+            new_trailing = self._strip_trailing_comment(
+                original_node.trailing_whitespace,
+                updated_node.trailing_whitespace,
+            )
+            updated_node = updated_node.with_changes(trailing_whitespace=new_trailing)
+        return updated_node
+
     def leave_IndentedBlock(
         self,
         original_node: cst.IndentedBlock,
@@ -478,3 +491,46 @@ class PyStripTransformer(CSTTransformer):
                 )
             )
         return updated_node
+
+    def leave_Decorator(
+        self,
+        original_node: cst.Decorator,
+        updated_node: cst.Decorator,
+    ) -> cst.Decorator:
+        if not self._config.remove_comments:
+            return updated_node
+        updated_node = updated_node.with_changes(
+            leading_lines=self._filter_leading_lines(
+                original_node.leading_lines,
+                updated_node.leading_lines,
+            )
+        )
+        new_trailing = self._strip_trailing_comment(
+            original_node.trailing_whitespace,
+            updated_node.trailing_whitespace,
+        )
+        return updated_node.with_changes(trailing_whitespace=new_trailing)
+
+    # ------------------------------------------------------------------
+    # Inline / standalone comments inside parenthesized expressions
+    # ------------------------------------------------------------------
+
+    def leave_ParenthesizedWhitespace(
+        self,
+        original_node: cst.ParenthesizedWhitespace,
+        updated_node: cst.ParenthesizedWhitespace,
+    ) -> cst.ParenthesizedWhitespace:
+        if not self._config.remove_comments:
+            return updated_node
+        new_first_line = self._strip_trailing_comment(
+            original_node.first_line,
+            updated_node.first_line,
+        )
+        new_empty_lines = self._filter_leading_lines(
+            original_node.empty_lines,
+            updated_node.empty_lines,
+        )
+        return updated_node.with_changes(
+            first_line=new_first_line,
+            empty_lines=new_empty_lines,
+        )
