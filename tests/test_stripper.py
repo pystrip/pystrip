@@ -313,6 +313,110 @@ class TestInlineCommentOnCompoundStatement:
         assert result.changed is False
 
 
+class TestDecoratorComments:
+    """Regression tests for comments on decorator lines."""
+
+    def test_removes_inline_comment_on_decorator(self) -> None:
+        source = "@decorator  # decorator comment\ndef foo():\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# decorator comment" not in result.modified_code
+        assert "@decorator" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_on_decorator_with_args(self) -> None:
+        source = "@decorator(arg)  # decorator comment\ndef foo():\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# decorator comment" not in result.modified_code
+        assert "@decorator(arg)" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_between_decorators(self) -> None:
+        source = "@dec1\n# between decorators\n@dec2\ndef foo():\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# between decorators" not in result.modified_code
+        assert "@dec1" in result.modified_code
+        assert "@dec2" in result.modified_code
+        assert result.changed is True
+
+    def test_decorator_comment_violation_recorded(self) -> None:
+        source = "@decorator  # inline\ndef foo():\n    pass\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="d.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 1
+        assert comment_violations[0].file == "d.py"
+
+    def test_no_change_when_remove_comments_disabled_on_decorator(self) -> None:
+        source = "@decorator  # comment\ndef foo():\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=False))
+        assert "# comment" in result.modified_code
+        assert result.changed is False
+
+
+class TestParenthesizedExpressionComments:
+    """Regression tests for comments inside parenthesized expressions."""
+
+    def test_removes_inline_comment_in_multiline_def_params(self) -> None:
+        source = "def foo(\n    a,  # param comment\n    b,\n):\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# param comment" not in result.modified_code
+        assert "def foo(" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_standalone_comment_inside_call(self) -> None:
+        source = "foo(\n    # standalone comment\n    a,\n)\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# standalone comment" not in result.modified_code
+        assert "foo(" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_in_multiline_if_condition(self) -> None:
+        source = "if (x and  # condition comment\n    y):\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# condition comment" not in result.modified_code
+        assert "if (x and" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_in_class_bases(self) -> None:
+        source = "class Foo(\n    Base,  # base comment\n):\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# base comment" not in result.modified_code
+        assert "class Foo(" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_in_parenthesized_with(self) -> None:
+        source = 'with (\n    open("a") as f,  # with comment\n    open("b") as g,\n):\n    pass\n'
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# with comment" not in result.modified_code
+        assert result.changed is True
+
+    def test_removes_inline_comment_in_multiline_return(self) -> None:
+        source = "def foo():\n    return (\n        1 +  # add comment\n        2\n    )\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# add comment" not in result.modified_code
+        assert result.changed is True
+
+    def test_parenthesized_comment_violation_recorded(self) -> None:
+        source = "def foo(\n    a,  # param\n    b,\n):\n    pass\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="p.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 2
+        assert comment_violations[0].file == "p.py"
+
+    def test_no_change_when_remove_comments_disabled_in_parens(self) -> None:
+        source = "def foo(\n    a,  # comment\n    b,\n):\n    pass\n"
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=False))
+        assert "# comment" in result.modified_code
+        assert result.changed is False
+
+
 class TestPlaceholderStyle:
     def test_default_uses_ellipsis_for_empty_docstring_body(self) -> None:
         source = 'def foo():\n    """Docstring."""\n'
