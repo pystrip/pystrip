@@ -417,6 +417,76 @@ class TestParenthesizedExpressionComments:
         assert result.changed is False
 
 
+class TestOneLiners:
+    """Regression tests for inline comments on one-liner compound statements."""
+
+    def test_removes_comment_on_one_liner_def(self) -> None:
+        source = "def foo(): pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "def foo(): pass" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_def_with_return(self) -> None:
+        source = "def foo(): return 1  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "return 1" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_class(self) -> None:
+        source = "class Foo: pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "class Foo: pass" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_if(self) -> None:
+        source = "if x: pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "if x: pass" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_for(self) -> None:
+        source = "for i in lst: pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "for i in lst: pass" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_while(self) -> None:
+        source = "while cond: break  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "while cond: break" in result.modified_code
+        assert result.changed is True
+
+    def test_removes_comment_on_one_liner_with(self) -> None:
+        source = "with ctx(): pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert "# comment" not in result.modified_code
+        assert "with ctx(): pass" in result.modified_code
+        assert result.changed is True
+
+    def test_one_liner_comment_violation_recorded(self) -> None:
+        source = "def foo(): pass  # comment\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="ol.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 1
+        assert comment_violations[0].file == "ol.py"
+
+    def test_no_change_when_remove_comments_disabled_on_one_liner(self) -> None:
+        source = "def foo(): pass  # comment\n"
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=False))
+        assert "# comment" in result.modified_code
+        assert result.changed is False
+
+
 class TestPlaceholderStyle:
     def test_default_uses_ellipsis_for_empty_docstring_body(self) -> None:
         source = 'def foo():\n    """Docstring."""\n'

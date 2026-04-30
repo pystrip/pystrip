@@ -391,6 +391,19 @@ class PyStripTransformer(CSTTransformer):
         # the entire SimpleStatementLine.
         return updated_node
 
+    def leave_SimpleStatementSuite(
+        self,
+        original_node: cst.SimpleStatementSuite,
+        updated_node: cst.SimpleStatementSuite,
+    ) -> cst.BaseSuite:
+        if self._config.remove_comments:
+            new_trailing = self._strip_trailing_comment(
+                original_node.trailing_whitespace,
+                updated_node.trailing_whitespace,
+            )
+            updated_node = updated_node.with_changes(trailing_whitespace=new_trailing)
+        return updated_node
+
     def leave_IndentedBlock(
         self,
         original_node: cst.IndentedBlock,
