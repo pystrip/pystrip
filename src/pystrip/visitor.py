@@ -67,65 +67,76 @@ class PyStripTransformer(CSTTransformer):
             return cst.SimpleStatementLine(body=[cst.Pass()])
         return cst.SimpleStatementLine(body=[cst.Expr(value=cst.Ellipsis())])
 
-    def _strip_comment_from_line(
-        self, original_line: cst.EmptyLine, updated_line: cst.EmptyLine
-    ) -> cst.EmptyLine | None:
-        """Remove comment from a leading empty line.
-
-        Returns None if the line was comment-only and blank-line removal is on
-        (meaning the line itself should be dropped entirely).
-        """
-        if original_line.comment is not None:
-            # Preserve shebang lines unless remove_shebang is set
-            if original_line.comment.value.startswith("#!") and not self._config.remove_shebang:
-                return updated_line
-            pos = self.get_metadata(PositionProvider, original_line)
-            self.violations.append(
-                Violation(
-                    file=self._filename,
-                    line=pos.start.line,
-                    column=pos.start.column,
-                    rule="COMMENT_REMOVED",
-                    message="Leading comment removed",
-                )
+    def _record_comment_removed(self, original_node: cst.CSTNode, message: str) -> None:
+        pos = self.get_metadata(PositionProvider, original_node)
+        self.violations.append(
+            Violation(
+                file=self._filename,
+                line=pos.start.line,
+                column=pos.start.column,
+                rule="COMMENT_REMOVED",
+                message=message,
             )
-            if self._config.remove_blank_lines:
-                return None
-            return updated_line.with_changes(comment=None)
-        return updated_line
+        )
 
-    def _strip_trailing_comment(
+    def leave_EmptyLine(
         self,
-        original_trailing_whitespace: cst.TrailingWhitespace,
-        updated_trailing_whitespace: cst.TrailingWhitespace,
+        original_node: cst.EmptyLine,
+        updated_node: cst.EmptyLine,
+    ) -> cst.EmptyLine | cst.RemovalSentinel:
+        """Remove a standalone comment wherever libcst parked the line.
+
+        ``EmptyLine`` is one of only two nodes that can hold a comment, so this
+        covers every ``leading_lines`` / ``header`` / ``footer`` /
+        ``lines_after_decorators`` / ``empty_lines`` sequence at once. Handling
+        the node type instead of each statement type is what stops a comment
+        position from being missed: there is no list of statements to keep up to
+        date.
+        """
+        if not self._config.remove_comments or original_node.comment is None:
+            return updated_node
+
+        pos = self.get_metadata(PositionProvider, original_node)
+        # A shebang is a property of physical line 1, not of the "#!" prefix:
+        # keeping any "#!" comment anywhere would make it an opt-out of the tool.
+        if (
+            original_node.comment.value.startswith("#!")
+            and pos.start.line == 1
+            and not self._config.remove_shebang
+        ):
+            return updated_node
+
+        self._record_comment_removed(original_node, "Leading comment removed")
+        if self._config.remove_blank_lines:
+            return cst.RemoveFromParent()
+        # --keep-blank: drop the comment but keep the physical line, so nothing
+        # below it is renumbered.
+        return updated_node.with_changes(comment=None)
+
+    def leave_TrailingWhitespace(
+        self,
+        original_node: cst.TrailingWhitespace,
+        updated_node: cst.TrailingWhitespace,
     ) -> cst.TrailingWhitespace:
-        if original_trailing_whitespace.comment is not None:
-            pos = self.get_metadata(PositionProvider, original_trailing_whitespace)
-            self.violations.append(
-                Violation(
-                    file=self._filename,
-                    line=pos.start.line,
-                    column=pos.start.column,
-                    rule="COMMENT_REMOVED",
-                    message="Trailing comment removed",
-                )
-            )
-            return updated_trailing_whitespace.with_changes(
-                comment=None,
-                whitespace=cst.SimpleWhitespace(""),
-            )
-        return updated_trailing_whitespace
+        """Remove an end-of-line comment wherever it is attached.
+
+        The second and last node type that can hold a comment. A trailing
+        comment is never a shebang — a shebang has to start its line.
+        """
+        if not self._config.remove_comments or original_node.comment is None:
+            return updated_node
+
+        self._record_comment_removed(original_node, "Trailing comment removed")
+        return updated_node.with_changes(
+            comment=None,
+            whitespace=cst.SimpleWhitespace(""),
+        )
 
     # ------------------------------------------------------------------
     # Module-level
     # ------------------------------------------------------------------
 
     def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                header=self._filter_leading_lines(original_node.header, updated_node.header)
-            )
-
         if self._config.remove_docstrings and updated_node.body:
             first = updated_node.body[0]
             if _is_docstring_node(first):
@@ -164,7 +175,7 @@ class PyStripTransformer(CSTTransformer):
 
     def leave_SimpleStatementLine(
         self,
-        original_node: cst.SimpleStatementLine,
+        original_node: cst.SimpleStatementLine,  # noqa: ARG002 - libcst signature
         updated_node: cst.SimpleStatementLine,
     ) -> cst.BaseStatement | cst.RemovalSentinel:
         if self._config.remove_type_annotations:
@@ -178,34 +189,6 @@ class PyStripTransformer(CSTTransformer):
             if 0 < len(filtered) < len(updated_node.body):
                 updated_node = updated_node.with_changes(body=filtered)
 
-        if self._config.remove_comments:
-            # Strip leading comments (drop the line entirely if it was comment-only)
-            new_trailing = self._strip_trailing_comment(
-                original_node.trailing_whitespace,
-                updated_node.trailing_whitespace,
-            )
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                ),
-                trailing_whitespace=new_trailing,
-            )
-        return updated_node
-
-    def leave_BaseCompoundStatement(
-        self,
-        original_node: cst.BaseCompoundStatement,
-        updated_node: cst.BaseCompoundStatement,
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        # For compound statements, remove leading_lines comments
-        if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
         return updated_node
 
     # ------------------------------------------------------------------
@@ -252,14 +235,6 @@ class PyStripTransformer(CSTTransformer):
         original_node: cst.FunctionDef,
         updated_node: cst.FunctionDef,
     ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-
         if self._config.remove_docstrings:
             new_body = self._remove_docstring_from_body(
                 updated_node.body,
@@ -288,14 +263,6 @@ class PyStripTransformer(CSTTransformer):
         original_node: cst.ClassDef,
         updated_node: cst.ClassDef,
     ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments and hasattr(updated_node, "leading_lines"):
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-
         if self._config.remove_docstrings:
             new_body = self._remove_docstring_from_body(
                 updated_node.body,
@@ -305,19 +272,6 @@ class PyStripTransformer(CSTTransformer):
             updated_node = updated_node.with_changes(body=new_body)
 
         return updated_node
-
-    def _filter_leading_lines(
-        self,
-        original_lines: Sequence[cst.EmptyLine],
-        updated_lines: Sequence[cst.EmptyLine],
-    ) -> list[cst.EmptyLine]:
-        """Strip comments from leading lines, dropping comment-only lines if configured."""
-        result: list[cst.EmptyLine] = []
-        for original_line, updated_line in zip(original_lines, updated_lines, strict=False):
-            stripped = self._strip_comment_from_line(original_line, updated_line)
-            if stripped is not None:
-                result.append(stripped)
-        return result
 
     # ------------------------------------------------------------------
     # Type annotation removal
@@ -391,33 +345,11 @@ class PyStripTransformer(CSTTransformer):
         # the entire SimpleStatementLine.
         return updated_node
 
-    def leave_SimpleStatementSuite(
-        self,
-        original_node: cst.SimpleStatementSuite,
-        updated_node: cst.SimpleStatementSuite,
-    ) -> cst.BaseSuite:
-        if self._config.remove_comments:
-            new_trailing = self._strip_trailing_comment(
-                original_node.trailing_whitespace,
-                updated_node.trailing_whitespace,
-            )
-            updated_node = updated_node.with_changes(trailing_whitespace=new_trailing)
-        return updated_node
-
     def leave_IndentedBlock(
         self,
-        original_node: cst.IndentedBlock,
+        original_node: cst.IndentedBlock,  # noqa: ARG002 - libcst signature
         updated_node: cst.IndentedBlock,
     ) -> cst.BaseSuite:
-        if self._config.remove_comments:
-            new_header = self._strip_trailing_comment(original_node.header, updated_node.header)
-            updated_node = updated_node.with_changes(header=new_header)
-
-        if self._config.remove_comments and original_node.footer:
-            updated_node = updated_node.with_changes(
-                footer=self._filter_leading_lines(original_node.footer, updated_node.footer)
-            )
-
         if not self._config.remove_type_annotations:
             return updated_node
         new_body = _filter_annotation_only_lines(updated_node.body)
@@ -427,110 +359,3 @@ class PyStripTransformer(CSTTransformer):
             return updated_node.with_changes(body=new_body)
         # All statements were annotation-only – insert a placeholder to keep the block valid.
         return updated_node.with_changes(body=[self._make_placeholder_stmt()])
-
-    # ------------------------------------------------------------------
-    # Inline comment removal on if/for/while/with/try
-    # ------------------------------------------------------------------
-
-    def leave_If(
-        self, original_node: cst.If, updated_node: cst.If
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-        return updated_node
-
-    def leave_For(
-        self, original_node: cst.For, updated_node: cst.For
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-        return updated_node
-
-    def leave_While(
-        self, original_node: cst.While, updated_node: cst.While
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-        return updated_node
-
-    def leave_With(
-        self, original_node: cst.With, updated_node: cst.With
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-        return updated_node
-
-    def leave_Try(
-        self, original_node: cst.Try, updated_node: cst.Try
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if self._config.remove_comments:
-            updated_node = updated_node.with_changes(
-                leading_lines=self._filter_leading_lines(
-                    original_node.leading_lines,
-                    updated_node.leading_lines,
-                )
-            )
-        return updated_node
-
-    def leave_Decorator(
-        self,
-        original_node: cst.Decorator,
-        updated_node: cst.Decorator,
-    ) -> cst.Decorator:
-        if not self._config.remove_comments:
-            return updated_node
-        updated_node = updated_node.with_changes(
-            leading_lines=self._filter_leading_lines(
-                original_node.leading_lines,
-                updated_node.leading_lines,
-            )
-        )
-        new_trailing = self._strip_trailing_comment(
-            original_node.trailing_whitespace,
-            updated_node.trailing_whitespace,
-        )
-        return updated_node.with_changes(trailing_whitespace=new_trailing)
-
-    # ------------------------------------------------------------------
-    # Inline / standalone comments inside parenthesized expressions
-    # ------------------------------------------------------------------
-
-    def leave_ParenthesizedWhitespace(
-        self,
-        original_node: cst.ParenthesizedWhitespace,
-        updated_node: cst.ParenthesizedWhitespace,
-    ) -> cst.ParenthesizedWhitespace:
-        if not self._config.remove_comments:
-            return updated_node
-        new_first_line = self._strip_trailing_comment(
-            original_node.first_line,
-            updated_node.first_line,
-        )
-        new_empty_lines = self._filter_leading_lines(
-            original_node.empty_lines,
-            updated_node.empty_lines,
-        )
-        return updated_node.with_changes(
-            first_line=new_first_line,
-            empty_lines=new_empty_lines,
-        )

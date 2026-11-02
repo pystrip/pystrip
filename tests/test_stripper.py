@@ -2,11 +2,38 @@
 
 from __future__ import annotations
 
+import io
+import tokenize
+
 from pystrip.stripper import StripConfig, strip_code
 
 
 def make_config(**kwargs: object) -> StripConfig:
     return StripConfig(**kwargs)  # type: ignore[arg-type]
+
+
+def comment_tokens(code: str) -> list[str]:
+    """Return every comment in code.
+
+    Tokenizing rather than searching for ``#`` matters: a ``#`` inside a string
+    literal is not a comment, and a comment does not have to contain anything
+    that a substring search would recognise.
+    """
+    tokens = tokenize.generate_tokens(io.StringIO(code).readline)
+    return [tok.string for tok in tokens if tok.type == tokenize.COMMENT]
+
+
+def assert_stripped(source: str) -> str:
+    """Strip comments from source and assert nothing recognisable survives.
+
+    Both halves are required: a stripper that drops comments by mangling the
+    code is not a stripper, so the output has to still compile.
+    """
+    result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+    assert comment_tokens(result.modified_code) == []
+    compile(result.modified_code, "<stripped>", "exec")
+    assert result.changed is True
+    return result.modified_code
 
 
 class TestCommentRemoval:
@@ -516,3 +543,203 @@ class TestPlaceholderStyle:
         )
         assert "pass" in result.modified_code
         assert "..." not in result.modified_code
+
+
+class TestCommentPositionCoverage:
+    """One test per CST position where a comment used to survive a strip.
+
+    Each name carries the libcst field the comment lands in, because that field
+    — not the surface syntax — is what the stripper has to handle. Enumerating
+    statement types leaks every type the author did not list; handling the two
+    fields that can hold a comment cannot.
+    """
+
+    def test_module_footer(self) -> None:
+        # Any comment after the last top-level statement. The most common real
+        # placement, and the one a comment-only file does not exercise: with no
+        # body, libcst files the comment under Module.header instead.
+        assert_stripped("x = 1\n# footer note\n")
+
+    def test_else_leading_lines_of_if(self) -> None:
+        assert_stripped("if x:\n    a = 1\n# why else\nelse:\n    b = 2\n")
+
+    def test_else_leading_lines_of_for(self) -> None:
+        assert_stripped("for i in x:\n    a = 1\n# why else\nelse:\n    b = 2\n")
+
+    def test_else_leading_lines_of_while(self) -> None:
+        assert_stripped("while x:\n    a = 1\n# why else\nelse:\n    b = 2\n")
+
+    def test_else_leading_lines_of_try(self) -> None:
+        assert_stripped(
+            "try:\n    a = 1\nexcept ValueError:\n    b = 2\n# why else\nelse:\n    c = 3\n"
+        )
+
+    def test_except_handler_leading_lines(self) -> None:
+        # The canonical place to explain a swallowed exception.
+        assert_stripped("try:\n    a = 1\n# swallowed on purpose\nexcept ValueError:\n    b = 2\n")
+
+    def test_finally_leading_lines(self) -> None:
+        assert_stripped(
+            "try:\n    a = 1\nexcept ValueError:\n    b = 2\n# cleanup\nfinally:\n    c = 3\n"
+        )
+
+    def test_except_star_handler_leading_lines(self) -> None:
+        assert_stripped("try:\n    a = 1\n# group note\nexcept* ValueError:\n    b = 2\n")
+
+    def test_try_star_leading_lines(self) -> None:
+        # TryStar is a distinct class from Try, so a leave_Try handler misses it.
+        assert_stripped("z = 0\n# note\ntry:\n    a = 1\nexcept* ValueError:\n    b = 2\n")
+
+    def test_match_leading_lines(self) -> None:
+        assert_stripped("z = 0\n# note\nmatch x:\n    case 1:\n        a = 1\n")
+
+    def test_match_case_leading_lines(self) -> None:
+        assert_stripped(
+            "match x:\n    case 1:\n        a = 1\n    # arm note\n    case 2:\n        b = 2\n"
+        )
+
+    def test_function_def_lines_after_decorators(self) -> None:
+        assert_stripped("@d\n# note\ndef f():\n    pass\n")
+
+    def test_class_def_lines_after_decorators(self) -> None:
+        assert_stripped("@d\n# note\nclass K:\n    a = 1\n")
+
+    def test_bang_comment_away_from_line_one_is_not_a_shebang(self) -> None:
+        # A shebang is a property of physical line 1, not of the "#!" prefix.
+        # Applying the rule position-blind makes "#!" a one-character opt-out of
+        # the whole tool, and it is asymmetric: the same text as a trailing
+        # comment (x = 1  #! bang) was always removed.
+        assert_stripped("x = 1\n#! not a shebang here\ny = 2\n")
+
+    def test_shebang_on_line_one_is_still_kept(self) -> None:
+        source = "#!/usr/bin/env python3\nx = 1\n#! not a shebang here\n"
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert comment_tokens(result.modified_code) == ["#!/usr/bin/env python3"]
+        assert result.modified_code.startswith("#!/usr/bin/env python3\n")
+
+    def test_mixed_file_leaves_no_comment_anywhere(self) -> None:
+        source = (
+            "#!/usr/bin/env python3\n"
+            "# head\n"
+            "import os  # inline\n"
+            "@d\n"
+            "# after decorator\n"
+            "def f(a):\n"
+            "    # body\n"
+            "    try:\n"
+            "        return a  # deep inline\n"
+            "    # before except\n"
+            "    except ValueError:\n"
+            "        pass\n"
+            "    # before finally\n"
+            "    finally:\n"
+            "        pass\n"
+            "    # block footer\n"
+            "# module footer\n"
+        )
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert comment_tokens(result.modified_code) == ["#!/usr/bin/env python3"]
+        compile(result.modified_code, "<stripped>", "exec")
+
+    def test_hash_inside_string_is_not_touched(self) -> None:
+        source = 'x = "a # b"\n# real comment\ny = """\n# also a string\n"""\n'
+        result = strip_code(source, make_config(remove_comments=True, remove_docstrings=False))
+        assert comment_tokens(result.modified_code) == []
+        assert '"a # b"' in result.modified_code
+        assert "# also a string" in result.modified_code
+
+    def test_no_change_when_remove_comments_disabled(self) -> None:
+        source = "x = 1\n# footer note\n"
+        result = strip_code(source, make_config(remove_comments=False, remove_docstrings=False))
+        assert result.modified_code == source
+        assert result.changed is False
+
+    def test_newly_covered_positions_record_violations(self) -> None:
+        # The violations list is what --check and every machine-readable format
+        # report. A comment removed without a violation recorded is a silent
+        # strip; a violation recorded without a removal is a false positive.
+        source = "x = 1\n# footer note\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, filename="footer.py"),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].file == "footer.py"
+        assert comment_violations[0].line == 2
+
+
+class TestKeepBlankLines:
+    """--keep-blank against the generic handlers.
+
+    Dropping an EmptyLine drops the physical line, so every line below it moves
+    up. That is correct by default, but --keep-blank exists so that stripping
+    does not renumber the file: a traceback, a coverage report or a reviewer's
+    line reference taken from the original still points at the same statement.
+    So with blank-line removal off the line has to survive as a blank.
+    """
+
+    def test_keep_blank_preserves_line_numbers_of_following_code(self) -> None:
+        source = "# header\nx = 1\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_blank_lines=False),
+        )
+        assert result.modified_code == "\nx = 1\n"
+        assert result.modified_code.splitlines().index("x = 1") == source.splitlines().index(
+            "x = 1"
+        )
+
+    def test_remove_blank_lines_drops_the_line_entirely(self) -> None:
+        source = "# header\nx = 1\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_blank_lines=True),
+        )
+        assert result.modified_code == "x = 1\n"
+
+    def test_keep_blank_in_module_footer(self) -> None:
+        source = "x = 1\n# footer note\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_blank_lines=False),
+        )
+        assert comment_tokens(result.modified_code) == []
+        assert result.modified_code == "x = 1\n\n"
+
+    def test_keep_blank_before_else_keeps_the_line_and_compiles(self) -> None:
+        source = "if x:\n    a = 1\n# why else\nelse:\n    b = 2\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_blank_lines=False),
+        )
+        assert comment_tokens(result.modified_code) == []
+        assert result.modified_code == "if x:\n    a = 1\n\nelse:\n    b = 2\n"
+        compile(result.modified_code, "<stripped>", "exec")
+
+    def test_keep_blank_preserves_indented_block_footer_line(self) -> None:
+        source = "def f():\n    a = 1\n    # block footer\nb = 2\n"
+        result = strip_code(
+            source,
+            make_config(remove_comments=True, remove_docstrings=False, remove_blank_lines=False),
+        )
+        assert comment_tokens(result.modified_code) == []
+        assert result.modified_code.splitlines().index("b = 2") == source.splitlines().index(
+            "b = 2"
+        )
+        compile(result.modified_code, "<stripped>", "exec")
+
+    def test_keep_blank_still_records_violations(self) -> None:
+        source = "x = 1\n# footer note\n"
+        result = strip_code(
+            source,
+            make_config(
+                remove_comments=True,
+                remove_docstrings=False,
+                remove_blank_lines=False,
+                filename="kb.py",
+            ),
+        )
+        comment_violations = [v for v in result.violations if v.rule == "COMMENT_REMOVED"]
+        assert len(comment_violations) == 1
+        assert comment_violations[0].line == 2
