@@ -401,7 +401,9 @@ def _run(args: argparse.Namespace) -> None:
                 f"{comment_violations} comment(s), "
                 f"{annotation_violations} annotation(s)."
             )
-        else:
+        elif not processing_errors:
+            # A file that could not be processed has not been shown to be clean,
+            # so do not print a clean verdict next to its error.
             console.print("[green]All files clean.[/green]")
 
     if processing_errors:

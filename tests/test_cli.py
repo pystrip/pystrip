@@ -323,6 +323,49 @@ def test_stdin_mode_check_outputs_violations() -> None:
     assert "Would change 1 file(s)" in result.stderr
 
 
+def test_check_fails_on_file_whose_comment_would_survive(tmp_path: Path) -> None:
+    """--check is a CI gate, so a leaked comment must not come back green.
+
+    A footer comment used to be left in place, so the file did not change, so
+    --check printed "All files clean." and exited 0 — a green gate over a
+    comment that is still in the shipped source.
+    """
+    import subprocess
+
+    py_file = tmp_path / "footer.py"
+    py_file.write_text("x = 1\n# secret footer note\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", str(py_file), "--check"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert str(py_file) in result.stdout
+    assert "COMMENT_REMOVED" in result.stdout
+    assert "All files clean." not in result.stderr
+    # --check must not write
+    assert py_file.read_text(encoding="utf-8") == "x = 1\n# secret footer note\n"
+
+
+def test_check_does_not_claim_clean_when_a_file_failed_to_parse(tmp_path: Path) -> None:
+    """A parse error must not be reported next to a clean verdict."""
+    import subprocess
+
+    py_file = tmp_path / "broken.py"
+    py_file.write_text("def (:\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pystrip", str(py_file), "--check", "--continue-on-error"],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "All files clean." not in result.stderr
+
+
 def test_stdin_mode_rejects_in_place() -> None:
     import subprocess
 
