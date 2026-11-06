@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-11-06
+
+### Fixed
+
+- Comments are now removed by node type (`EmptyLine.comment`, `TrailingWhitespace.comment`) instead of per statement type, closing 14 input shapes over 7 CST positions where a comment survived a strip — including comments after the last top-level statement (`Module.footer`) and inside `except` handlers.
+- A `#!` comment is only kept as a shebang on physical line 1; elsewhere it is now removed like any other comment.
+- A parse error no longer prints `All files clean.` alongside it.
+
 ## [1.3.2] - 2026-04-30
 
 ### Fixed
