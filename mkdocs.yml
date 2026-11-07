@@ -1,0 +1,73 @@
+site_name: pystrip
+site_description: Safely remove comments, docstrings, and type annotations from Python source.
+site_url: https://pystrip.github.io/pystrip/
+site_author: Zeecka
+
+repo_url: https://github.com/pystrip/pystrip
+repo_name: pystrip/pystrip
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; Zeecka — MIT License
+
+theme:
+  name: material
+  logo: logo.png
+  favicon: logo.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Configuration: configuration.md
+  - Output formats: output-formats.md
+  - Integrations: integrations.md
+  - Python API: api.md
+  - FAQ: faq.md
+  - Roadmap: roadmap.md
+  - Development: development.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+plugins:
+  - search
