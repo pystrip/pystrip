@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Inline pragmas: `# pystrip: keep` protects the comment it sits in or, as a
+  trailing comment, everything on that statement line (docstring, annotated
+  assignment); `# pystrip: skip-file` on its own line leaves the file untouched.
+- `--keep-header` / `keep_header` keeps the leading comment block of a file
+  (shebang, encoding cookie, license banner).
+- ruff-style rule selection: `--select` / `--ignore` and the matching `select` /
+  `ignore` config keys over `COMMENT_REMOVED`, `DOCSTRING_REMOVED`,
+  `TYPE_ANNOTATION_REMOVED`, and `ALL`. The `--keep-*` flags still work and
+  still win.
+- `--respect-gitignore` / `respect_gitignore` skips git-ignored files when
+  searching directories, via `git check-ignore`.
+- `--stdin-filename PATH` names the file behind stdin for violations and for
+  `.pyi` / `.ipynb` handling, so editors can run pystrip as a formatter.
+- `.pyi` stub files are discovered and never lose their type annotations.
+- Jupyter notebooks (`.ipynb`) are discovered and stripped cell by cell;
+  outputs, markdown, and line magics are preserved. New `pystrip.notebook.strip_notebook`.
+- `StripResult.skipped` and `pystrip.stripper.RULES`.
+- A browser playground on the documentation site, running pystrip under Pyodide.
+- Each published release now moves the `v1` tag so `uses: pystrip/pystrip@v1`
+  tracks the latest 1.x; the action is listed on the GitHub Marketplace.
 - `--version` flag.
 - pre-commit hook definitions (`pystrip`, `pystrip-check`) and a reusable
   composite GitHub Action.
@@ -17,6 +37,8 @@ All notable changes to this project will be documented in this file.
 
 - CI now runs on Python 3.11, 3.12, and 3.13, measures coverage with an 80%
   floor, and verifies the built package with `twine check`.
+- Directory discovery now includes `.pyi` and `.ipynb` files in addition to
+  `.py`. Exclude them with `--exclude-glob "*.ipynb"` if that is unwanted.
 
 ## [1.4.0] - 2026-11-06
 

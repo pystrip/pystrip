@@ -15,19 +15,28 @@ standalone use.
 | `remove_blank_lines` | bool | `true` | Remove blank lines left by comment removal. |
 | `remove_shebang` | bool | `false` | Remove a line-1 `#!` shebang. |
 | `use_pass` | bool | `false` | Use `pass` instead of `...` for emptied bodies. |
+| `keep_header` | bool | `false` | Keep the leading comment block (shebang, encoding cookie, license banner). |
+| `select` | list[str] | all rules | Rules to enable: `COMMENT_REMOVED`, `DOCSTRING_REMOVED`, `TYPE_ANNOTATION_REMOVED`, or `ALL`. |
+| `ignore` | list[str] | `[]` | Rules to disable, applied after `select`. |
+| `respect_gitignore` | bool | `false` | Skip git-ignored files when searching directories. |
 | `exclude` | list[str] | `[]` | Path fragments to skip. |
 | `exclude_glob` | list[str] | `[]` | File-name globs to skip. |
 | `line_length` | int | `100` | Reserved for formatting. |
 | `jobs` | int | `1` | Worker processes. |
 
+`select` / `ignore` and the `remove_*` switches describe the same thing. When
+either `select` or `ignore` is set, it decides the three rule switches and the
+`remove_comments` / `remove_docstrings` / `remove_type_annotations` keys are
+ignored; a configuration that sets neither behaves exactly as before.
+
 ## Example
 
 ```toml
 [tool.pystrip]
-remove_comments = true
-remove_docstrings = true
-remove_type_annotations = true
-remove_blank_lines = true
+select = ["ALL"]
+ignore = ["TYPE_ANNOTATION_REMOVED"]
+keep_header = true
+respect_gitignore = true
 exclude = ["tests/"]
 exclude_glob = ["*.generated.py"]
 jobs = 4

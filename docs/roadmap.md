@@ -4,101 +4,65 @@ Candidate features and integrations, ranked by value against effort. Nothing
 here is committed; it is a menu for deciding what to build next. Each item notes
 the practical value, the rough effort, and the main risk.
 
-## High value, low-to-medium effort
+## Shipped in 1.5
 
-### 1. Inline keep/skip pragmas
+The first nine items of this roadmap landed together in 1.5. Each links to the
+documentation that now describes it.
 
-Let a source file opt out of stripping with directives such as
-`# pystrip: keep` on the comment or docstring to preserve, and
-`# pystrip: skip-file` at the top of a file. This removes the biggest limitation
-of an all-or-nothing stripper: today you must exclude a whole file to protect a
-single license banner or explanatory comment.
+| # | Feature | Where |
+|---|---------|-------|
+| 1 | Inline `# pystrip: keep` / `# pystrip: skip-file` pragmas | [Usage](usage.md#inline-pragmas) |
+| 2 | `--keep-header` for shebang, encoding cookie, license banners | [Usage](usage.md#what-gets-removed) |
+| 3 | `--respect-gitignore` | [Usage](usage.md#selecting-files) |
+| 4 | `--stdin-filename` for editor integration | [Usage](usage.md#stdin-mode), [Integrations](integrations.md#editors) |
+| 5 | GitHub Action on the Marketplace with a moving `v1` tag | [Integrations](integrations.md#marketplace-listing) |
+| 6 | `.pyi` stub awareness | [Usage](usage.md#selecting-files) |
+| 7 | Jupyter notebook support | [Usage](usage.md#selecting-files), [Python API](api.md#strip_notebook) |
+| 8 | ruff-style `select` / `ignore` rule model | [Usage](usage.md#rule-selection), [Configuration](configuration.md) |
+| 9 | Browser playground on Pyodide | [Playground](playground.md) |
 
-- **Value:** high — the most common real-world objection.
-- **Effort:** medium — the visitor already inspects comment nodes.
-- **Risk:** low — opt-in; no change to existing behaviour.
+## Candidates
 
-### 2. Keep file-header / license comments
+### Per-directory configuration
 
-A `--keep-header` flag (and config key) that preserves the leading comment block
-of a file, so copyright and SPDX license headers survive a strip.
+Let a nested `pyproject.toml` or `.pystrip.toml` override the root settings for
+its subtree, the way ruff resolves the closest configuration file.
 
-- **Value:** high — losing license headers is a frequent, serious surprise.
-- **Effort:** low-medium.
-- **Risk:** low — opt-in.
+- **Value:** medium — monorepos with mixed policies.
+- **Effort:** medium — discovery per file, cache per directory.
+- **Risk:** low — opt-in by presence of a nested file.
 
-### 3. Respect `.gitignore`
+### Keep comments by pattern
 
-When collecting files, skip anything git ignores, matching the default users
-expect from modern tools.
+A `keep_comment_patterns` list of regular expressions (for example `^# type:`,
+`^# noqa`, `^# fmt:`) that protects tool directives without a pragma on every
+line.
 
-- **Value:** medium-high.
-- **Effort:** low-medium — shell out to `git ls-files`, or use `pathspec`.
-- **Risk:** low — can be gated behind a flag to stay deterministic.
+- **Value:** medium-high — `# type: ignore` and `# noqa` are load-bearing for
+  other tools and today need `# pystrip: keep` each.
+- **Effort:** low — one more check in the comment visitors.
+- **Risk:** low.
 
-### 4. `--stdin-filename`
+### Encoding-cookie guard
 
-Let stdin mode carry a filename so per-path config applies and violations report
-a real path. This is what editors need to call pystrip as a formatter, the way
-ruff and black are wired in.
+Refuse to remove a PEP 263 cookie from a file that is not valid UTF-8, or warn,
+instead of relying on the [FAQ](faq.md).
 
-- **Value:** medium-high — unlocks editor integration.
+- **Value:** medium — turns a documented footgun into a loud failure.
 - **Effort:** low.
 - **Risk:** low.
 
-### 5. Publish the GitHub Action to the Marketplace
+### Language Server Protocol shim
 
-The composite `action.yml` already exists. Publishing it under a `v1` tag on the
-GitHub Marketplace makes `uses: pystrip/pystrip@v1` discoverable.
+A tiny LSP server exposing pystrip as a formatting provider, so editors need no
+shell wiring at all.
 
-- **Value:** medium — distribution and visibility.
-- **Effort:** low — a release step, no code.
-- **Risk:** low.
-
-## Medium value, medium effort
-
-### 6. `.pyi` stub awareness
-
-Treat `.pyi` stub files correctly: never strip annotations from them, since
-annotations are their entire purpose.
-
-- **Value:** medium for typed libraries.
-- **Effort:** low-medium.
-- **Risk:** low.
-
-### 7. Jupyter notebook support
-
-Strip comments and docstrings inside `.ipynb` code cells.
-
-- **Value:** medium — notebooks are a common Python surface.
-- **Effort:** medium — parse `nbformat`, process each code cell.
-- **Risk:** medium — round-tripping notebook JSON cleanly.
-
-### 8. Per-rule selection
-
-A ruff-style `select` / `ignore` model over the rule set
-(`COMMENT_REMOVED`, `DOCSTRING_REMOVED`, `TYPE_ANNOTATION_REMOVED`), replacing
-the current `--keep-*` flags with a single consistent mechanism.
-
-- **Value:** medium — nicer ergonomics, familiar to ruff users.
-- **Effort:** medium — config and CLI redesign with back-compat.
-- **Risk:** medium — must not break existing `--keep-*` users.
-
-## Lower priority / larger bets
-
-### 9. Browser playground
-
-A "try pystrip" page on the docs site, running the stripper client-side via
-Pyodide/WebAssembly.
-
-- **Value:** medium — great for onboarding and demos.
-- **Effort:** high.
-- **Risk:** medium — libcst under Pyodide.
+- **Value:** medium.
+- **Effort:** medium-high — a new process model and protocol surface.
+- **Risk:** medium — maintenance of a second entry point.
 
 ## Known issues to triage (not features)
 
-- **PEP 263 encoding cookie.** Removing `# -*- coding: latin-1 -*-` from a
-  non-UTF-8 file changes how CPython decodes it. This is pre-existing upstream
-  behaviour, documented in the [FAQ](faq.md); a guard or warning could be added.
-- **Dry-run summary label.** A dry run can print `Changed N file(s)` where
-  `Would change` is clearer. Cosmetic, pre-existing.
+- **Dry-run summary label.** The GitHub and GitLab summary lines print
+  `Changed N file(s)` even in `--check` mode, where the console summary already
+  says `Would change`. Cosmetic, pre-existing.

@@ -43,6 +43,7 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Usage: usage.md
+  - Playground: playground.md
   - Configuration: configuration.md
   - Output formats: output-formats.md
   - Integrations: integrations.md
@@ -68,6 +69,12 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: ["."]
       check_paths: true
+
+extra_javascript:
+  - javascripts/playground.js
+
+extra_css:
+  - stylesheets/playground.css
 
 plugins:
   - search

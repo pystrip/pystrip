@@ -54,6 +54,18 @@ Inputs:
 | `version` | latest | pystrip version to install. |
 | `python-version` | `3.11` | Python used to run pystrip. |
 
+`pystrip/pystrip@v1` is a moving major tag: every published release moves it
+to the new version, so `@v1` always resolves to the latest 1.x without edits on
+your side. Pin `@v1.5.0` to freeze a release.
+
+### Marketplace listing
+
+The action is listed on the
+[GitHub Marketplace](https://github.com/marketplace/actions/pystrip). The
+listing is driven by `action.yml` (name, description, `branding`) and is
+refreshed from each GitHub release that has **Publish this Action to the GitHub
+Marketplace** ticked.
+
 ### Plain workflow step
 
 If you prefer not to use the action:
@@ -64,6 +76,34 @@ If you prefer not to use the action:
 
 The `--format github` output turns each surviving comment or docstring into an
 inline annotation on the pull request.
+
+## Editors
+
+pystrip behaves like a formatter on stdin: feed the buffer in, read the result
+from stdout, and pass `--stdin-filename` so per-file handling (`.pyi`,
+`.ipynb`) and reported paths are right. Any editor that can run an external
+formatter can use it.
+
+VS Code, with the
+[Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave)
+extension or a task:
+
+```json
+{
+  "command": "pystrip - --stdin-filename ${file} < ${file} > ${file}.tmp && mv ${file}.tmp ${file}"
+}
+```
+
+Neovim, via [conform.nvim](https://github.com/stevearc/conform.nvim):
+
+```lua
+require("conform").setup({
+  formatters = {
+    pystrip = { command = "pystrip", args = { "-", "--stdin-filename", "$FILENAME" } },
+  },
+  formatters_by_ft = { python = { "pystrip" } },
+})
+```
 
 ## GitLab CI
 

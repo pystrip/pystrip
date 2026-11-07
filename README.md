@@ -21,9 +21,15 @@ Python tool to safely remove comments, docstrings, and type annotations from sou
 - Removes docstrings (module, class, function)
 - Removes type annotations (parameter hints, return types, variable annotations)
 - Keeps regular string literals untouched
+- Inline pragmas: `# pystrip: keep` protects a comment, docstring, or annotated line; `# pystrip: skip-file` opts a file out
+- `--keep-header` preserves shebang, encoding cookie, and license banners
+- ruff-style `--select` / `--ignore` over the three rules, alongside the `--keep-*` flags
+- Handles `.pyi` stubs (annotations kept) and `.ipynb` notebooks (code cells only)
+- `--respect-gitignore` and `--stdin-filename` for editor integration
 - Supports output formats: `text`, `json`, `sarif`, `gitlab`, `github`
 - Works in CI with `--check`
 - Supports config discovery and parallel processing
+- Try it in the browser on the [playground](https://pystrip.github.io/pystrip/playground/)
 
 ## What pystrip will not remove
 

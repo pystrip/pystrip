@@ -33,7 +33,20 @@ it with a formatter such as `ruff format` or `black` if you want that.
 Almost never, with one upstream caveat: a PEP 263 encoding cookie
 (`# -*- coding: latin-1 -*-`) is a comment that also changes how CPython decodes
 the file. Removing it from a non-UTF-8 file can change behaviour. Keep such
-files UTF-8, or exclude them.
+files UTF-8, or protect the cookie with `--keep-header` or a trailing
+`# pystrip: keep`.
+
+## How do I keep one comment, or one docstring, without excluding the file?
+
+Add `# pystrip: keep` to the comment, or as a trailing comment on the docstring
+or annotated line you want to protect. `# pystrip: skip-file` on its own line
+opts a whole file out. See [Inline pragmas](usage.md#inline-pragmas).
+
+## Does pystrip handle notebooks and stub files?
+
+Yes. `.ipynb` code cells are stripped in place (outputs and markdown untouched),
+and `.pyi` stubs keep their type annotations. Both are picked up when a
+directory is given. See [Selecting files](usage.md#selecting-files).
 
 ## Is the Python API stable?
 
