@@ -29,6 +29,15 @@ def run_cli(argv: list[str], monkeypatch: pytest.MonkeyPatch) -> int:
     return 0
 
 
+def test_version_flag_prints_version(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = run_cli(["--version"], monkeypatch)
+
+    assert code == 0
+    assert capsys.readouterr().out.startswith("pystrip ")
+
+
 def test_check_reports_changes_with_exit_1(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -64,9 +73,7 @@ def test_in_place_rewrites_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert "#" not in target.read_text(encoding="utf-8")
 
 
-def test_output_dir_leaves_input_untouched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_output_dir_leaves_input_untouched(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     src = tmp_path / "m.py"
     original = "# comment\nx = 1\n"
@@ -104,9 +111,7 @@ def test_no_python_files_found_exits_0(
     assert "No Python files found." in capsys.readouterr().err
 
 
-def test_config_error_exits_2(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_config_error_exits_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     bad = tmp_path / "bad.toml"
     bad.write_text("jobs = -1\n", encoding="utf-8")

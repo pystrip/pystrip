@@ -1,0 +1,46 @@
+name: Bug report
+description: Report incorrect stripping, a crash, or wrong output.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A minimal input that reproduces the problem is the
+        single most useful thing you can provide.
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input
+      description: The smallest Python source that triggers the bug.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact pystrip command you ran.
+      placeholder: pystrip example.py --check
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected to happen, and what actually happened.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: pystrip version
+      description: Output of `pystrip --version` or the installed version.
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12"
+    validations:
+      required: true

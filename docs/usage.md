@@ -76,8 +76,10 @@ instead. `--in-place`, `--output-dir`, and `--diff` are not valid with stdin.
 
 ## Full option reference
 
+Print the installed version with `pystrip --version`.
+
 ```text
-usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN]
+usage: pystrip [-h] [--version] [--exclude PATH] [--exclude-glob PATTERN]
                [--keep-docstrings] [--keep-comments] [--keep-type-annotations]
                [--keep-blank] [--remove-shebang] [--use-pass] [--check]
                [--diff] [--in-place] [--output-dir DIR] [--no-recursive]

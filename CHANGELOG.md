@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- `--version` flag.
+- pre-commit hook definitions (`pystrip`, `pystrip-check`) and a reusable
+  composite GitHub Action.
+- MkDocs Material documentation site, deployed to GitHub Pages.
+- Community health files: `CONTRIBUTING.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md`, issue and pull-request templates, and Dependabot.
+
+### Changed
+
+- CI now runs on Python 3.11, 3.12, and 3.13, measures coverage with an 80%
+  floor, and verifies the built package with `twine check`.
+
 ## [1.4.0] - 2026-11-06
 
 ### Fixed

@@ -11,6 +11,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from pystrip import __version__
 from pystrip.config import ConfigError, PyStripConfig, load_config
 from pystrip.discovery import find_project_root
 from pystrip.reporting import FormatType, format_violations
@@ -25,6 +26,11 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="pystrip",
         description="Remove comments and docstrings from Python source files.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "paths",
