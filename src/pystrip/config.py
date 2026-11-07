@@ -7,6 +7,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from pystrip.stripper import RULES
+
+#: Rule selector that stands for every rule, as in ruff.
+ALL_RULES = "ALL"
+
+#: Rule name -> the ``remove_*`` switch it controls.
+_RULE_SWITCH: dict[str, str] = {
+    "COMMENT_REMOVED": "remove_comments",
+    "DOCSTRING_REMOVED": "remove_docstrings",
+    "TYPE_ANNOTATION_REMOVED": "remove_type_annotations",
+}
+
 
 class ConfigError(ValueError):
     """Raised when a pystrip configuration file is invalid."""
@@ -22,11 +34,49 @@ class PyStripConfig:
     remove_type_annotations: bool = True
     remove_shebang: bool = False
     use_pass: bool = False
+    keep_header: bool = False
+    respect_gitignore: bool = False
+    select: list[str] | None = None
+    ignore: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     exclude_glob: list[str] = field(default_factory=list)
     line_length: int = 100
     jobs: int = 1
     config_path: Path | None = None
+
+    def resolve_rules(self) -> None:
+        """Turn ``select`` / ``ignore`` into the ``remove_*`` switches.
+
+        ``select`` defaults to every rule; ``ignore`` is subtracted from it. A
+        run that sets neither keeps the explicit ``remove_*`` values untouched,
+        so existing configurations behave exactly as before.
+        """
+        if self.select is None and not self.ignore:
+            return
+        if self.select is None or ALL_RULES in self.select:
+            enabled = set(RULES)
+        else:
+            enabled = set(self.select)
+        enabled -= set(RULES) if ALL_RULES in self.ignore else set(self.ignore)
+        for rule, switch in _RULE_SWITCH.items():
+            setattr(self, switch, rule in enabled)
+
+
+def parse_rule_list(values: list[str], source: str) -> list[str]:
+    """Validate a ``select`` / ``ignore`` list; comma-separated items are accepted."""
+    rules: list[str] = []
+    for value in values:
+        for item in value.split(","):
+            item = item.strip().upper()
+            if not item:
+                continue
+            if item != ALL_RULES and item not in RULES:
+                raise ConfigError(
+                    f"Unknown rule {item!r} in {source}: expected one of "
+                    f"{', '.join((ALL_RULES, *RULES))}"
+                )
+            rules.append(item)
+    return rules
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -127,6 +177,14 @@ def _apply_section(cfg: PyStripConfig, section: dict[str, Any], source: Path) ->
         cfg.remove_shebang = _require_bool(section, "remove_shebang", source)
     if "use_pass" in section:
         cfg.use_pass = _require_bool(section, "use_pass", source)
+    if "keep_header" in section:
+        cfg.keep_header = _require_bool(section, "keep_header", source)
+    if "respect_gitignore" in section:
+        cfg.respect_gitignore = _require_bool(section, "respect_gitignore", source)
+    if "select" in section:
+        cfg.select = parse_rule_list(_require_str_list(section, "select", source), str(source))
+    if "ignore" in section:
+        cfg.ignore = parse_rule_list(_require_str_list(section, "ignore", source), str(source))
     if "exclude" in section:
         cfg.exclude = _require_str_list(section, "exclude", source)
     if "exclude_glob" in section:
