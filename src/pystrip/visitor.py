@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 import libcst as cst
@@ -10,12 +11,33 @@ from libcst.metadata import PositionProvider
 
 from pystrip.stripper import StripConfig, Violation
 
+#: ``# pystrip: keep`` anywhere in a comment protects that comment, and, when
+#: it trails a statement line, every removal on that line (docstring, annotation).
+_KEEP_RE = re.compile(r"#\s*pystrip:\s*keep\b")
+
+
+def _has_keep_pragma(comment: cst.Comment | None) -> bool:
+    return comment is not None and _KEEP_RE.search(comment.value) is not None
+
+
+def _line_has_keep_pragma(stmt: cst.BaseStatement) -> bool:
+    """Return True if ``stmt`` is a simple statement line ending in ``# pystrip: keep``."""
+    return isinstance(stmt, cst.SimpleStatementLine) and _has_keep_pragma(
+        stmt.trailing_whitespace.comment
+    )
+
 
 def _is_docstring_node(node: cst.BaseStatement) -> bool:
-    """Return True if node is a docstring (expression statement with a string literal)."""
+    """Return True if node is a docstring (expression statement with a string literal).
+
+    A docstring carrying a trailing ``# pystrip: keep`` is not reported as one,
+    so every caller leaves it alone without a second check.
+    """
     if not isinstance(node, cst.SimpleStatementLine):
         return False
     if len(node.body) != 1:
+        return False
+    if _line_has_keep_pragma(node):
         return False
     stmt = node.body[0]
     if not isinstance(stmt, cst.Expr):
@@ -28,6 +50,8 @@ def _is_docstring_node(node: cst.BaseStatement) -> bool:
 def _is_annotation_only_line(stmt: cst.BaseStatement) -> bool:
     """Return True if stmt is a SimpleStatementLine containing only annotation-only AnnAssigns."""
     if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    if _line_has_keep_pragma(stmt):
         return False
     return bool(stmt.body) and all(
         isinstance(s, cst.AnnAssign) and s.value is None for s in stmt.body
@@ -50,12 +74,17 @@ class PyStripTransformer(CSTTransformer):
 
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, config: StripConfig, filename: str = "<unknown>") -> None:
+    def __init__(
+        self, config: StripConfig, filename: str = "<unknown>", header_end: int = 0
+    ) -> None:
         super().__init__()
         self._config = config
         self._filename = filename
         self.violations: list[Violation] = []
-        self._body_depth: int = 0  # track nesting for docstring detection
+        # Last physical line of the leading comment block protected by --keep-header.
+        self._header_end = header_end
+        # >0 while inside a statement line that trails a ``# pystrip: keep``.
+        self._keep_depth = 0
 
     # ------------------------------------------------------------------
     # Comment removal
@@ -95,6 +124,8 @@ class PyStripTransformer(CSTTransformer):
         """
         if not self._config.remove_comments or original_node.comment is None:
             return updated_node
+        if _has_keep_pragma(original_node.comment):
+            return updated_node
 
         pos = self.get_metadata(PositionProvider, original_node)
         # A shebang is a property of physical line 1, not of the "#!" prefix:
@@ -104,6 +135,8 @@ class PyStripTransformer(CSTTransformer):
             and pos.start.line == 1
             and not self._config.remove_shebang
         ):
+            return updated_node
+        if pos.start.line <= self._header_end:
             return updated_node
 
         self._record_comment_removed(original_node, "Leading comment removed")
@@ -124,6 +157,8 @@ class PyStripTransformer(CSTTransformer):
         comment is never a shebang — a shebang has to start its line.
         """
         if not self._config.remove_comments or original_node.comment is None:
+            return updated_node
+        if _has_keep_pragma(original_node.comment):
             return updated_node
 
         self._record_comment_removed(original_node, "Trailing comment removed")
@@ -173,11 +208,20 @@ class PyStripTransformer(CSTTransformer):
     # Statement-level comment removal
     # ------------------------------------------------------------------
 
+    def visit_SimpleStatementLine(self, node: cst.SimpleStatementLine) -> bool:
+        if _line_has_keep_pragma(node):
+            self._keep_depth += 1
+        return True
+
     def leave_SimpleStatementLine(
         self,
-        original_node: cst.SimpleStatementLine,  # noqa: ARG002 - libcst signature
+        original_node: cst.SimpleStatementLine,
         updated_node: cst.SimpleStatementLine,
     ) -> cst.BaseStatement | cst.RemovalSentinel:
+        if _line_has_keep_pragma(original_node):
+            self._keep_depth -= 1
+            return updated_node
+
         if self._config.remove_type_annotations:
             # For mixed lines (some annotation-only, some not), filter the annotation-only stmts.
             # Pure annotation-only lines are handled in leave_IndentedBlock / leave_Module.
@@ -224,8 +268,14 @@ class PyStripTransformer(CSTTransformer):
         )
         remaining = stmts[1:]
         if remaining:
-            if self._config.remove_blank_lines and hasattr(remaining[0], "leading_lines"):
-                remaining[0] = remaining[0].with_changes(leading_lines=[])
+            first_remaining = remaining[0]
+            if self._config.remove_blank_lines and isinstance(
+                first_remaining, (cst.SimpleStatementLine, cst.BaseCompoundStatement)
+            ):
+                # Drop the blank lines that separated the docstring from the
+                # body, but not a comment that survived (``# pystrip: keep``).
+                kept = [line for line in first_remaining.leading_lines if line.comment is not None]
+                remaining[0] = first_remaining.with_changes(leading_lines=kept)
             return body.with_changes(body=remaining)
         # Body would be empty - insert placeholder
         return body.with_changes(body=[self._make_placeholder_stmt()])
@@ -301,7 +351,7 @@ class PyStripTransformer(CSTTransformer):
         original_node: cst.AnnAssign,
         updated_node: cst.AnnAssign,
     ) -> cst.BaseSmallStatement:
-        if not self._config.remove_type_annotations:
+        if not self._config.remove_type_annotations or self._keep_depth:
             return updated_node
 
         pos = self.get_metadata(PositionProvider, original_node)
