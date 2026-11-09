@@ -78,6 +78,7 @@ A file can protect parts of itself without being excluded:
 # Copyright 2026 Example Corp  # pystrip: keep
 """Public module docstring, part of the API."""  # pystrip: keep
 
+
 def f(x: int) -> int:
     # Explains a non-obvious invariant  # pystrip: keep
     return x  # removed

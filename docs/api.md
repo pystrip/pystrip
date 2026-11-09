@@ -26,7 +26,7 @@ def greet(name: str) -> str:
 '''
 
 result = strip_code(source, StripConfig(filename="greet.py"))
-print(result.changed)        # True
+print(result.changed)  # True
 print(result.modified_code)  # def greet(name): ...
 for v in result.violations:
     print(v.rule, v.line, v.message)
@@ -60,6 +60,7 @@ Configuration for a single strip operation.
 
 ```python
 from pystrip.notebook import strip_notebook
+
 
 def strip_notebook(text: str, config: StripConfig) -> StripResult: ...
 ```

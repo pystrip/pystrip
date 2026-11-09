@@ -60,13 +60,16 @@ package from PyPI, then calls the same public API you'd use locally:
 ```python
 from pystrip.stripper import StripConfig, strip_code
 
-result = strip_code(source, StripConfig(
-    remove_comments=True,
-    remove_docstrings=True,
-    remove_type_annotations=True,
-    remove_blank_lines=True,
-    use_pass=False,
-))
+result = strip_code(
+    source,
+    StripConfig(
+        remove_comments=True,
+        remove_docstrings=True,
+        remove_type_annotations=True,
+        remove_blank_lines=True,
+        use_pass=False,
+    ),
+)
 
 print(result.modified_code)
 for violation in result.violations:
