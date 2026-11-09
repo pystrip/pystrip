@@ -11,10 +11,12 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from pystrip.config import ConfigError, PyStripConfig, load_config
+from pystrip import __version__
+from pystrip.config import ConfigError, PyStripConfig, load_config, parse_rule_list
 from pystrip.discovery import find_project_root
+from pystrip.notebook import strip_notebook
 from pystrip.reporting import FormatType, format_violations
-from pystrip.stripper import StripConfig, StripResult, Violation, strip_code
+from pystrip.stripper import RULES, StripConfig, StripResult, Violation, strip_code
 from pystrip.utils import collect_python_files
 
 console = Console(stderr=True)
@@ -25,6 +27,11 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="pystrip",
         description="Remove comments and docstrings from Python source files.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "paths",
@@ -70,6 +77,38 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=None,
         help="Keep blank lines introduced by comment removal",
+    )
+    parser.add_argument(
+        "--keep-header",
+        action="store_true",
+        default=None,
+        help="Keep the leading comment block of each file (shebang, encoding, license banner)",
+    )
+    parser.add_argument(
+        "--select",
+        action="append",
+        default=None,
+        metavar="RULE",
+        help=f"Enable only these rules (repeatable or comma-separated): ALL, {', '.join(RULES)}",
+    )
+    parser.add_argument(
+        "--ignore",
+        action="append",
+        default=None,
+        metavar="RULE",
+        help="Disable these rules (repeatable or comma-separated); applied after --select",
+    )
+    parser.add_argument(
+        "--respect-gitignore",
+        action="store_true",
+        default=None,
+        help="Skip files ignored by git when searching directories",
+    )
+    parser.add_argument(
+        "--stdin-filename",
+        default=None,
+        metavar="PATH",
+        help="Path to report for stdin input; also selects .pyi/.ipynb handling",
     )
     parser.add_argument(
         "--remove-shebang",
@@ -154,6 +193,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
     """Apply CLI argument overrides to configuration."""
+    # Rule selection first, so the explicit --keep-* flags below still win.
+    if args.select is not None:
+        cfg.select = parse_rule_list(args.select, "--select")
+    if args.ignore is not None:
+        cfg.ignore = parse_rule_list(args.ignore, "--ignore")
+    cfg.resolve_rules()
+    if args.keep_header:
+        cfg.keep_header = True
+    if args.respect_gitignore:
+        cfg.respect_gitignore = True
     if args.keep_docstrings:
         cfg.remove_docstrings = False
     if args.keep_comments:
@@ -174,36 +223,37 @@ def _apply_cli_overrides(cfg: PyStripConfig, args: argparse.Namespace) -> None:
         cfg.use_pass = True
 
 
+def _strip_config(cfg: PyStripConfig, filename: str) -> StripConfig:
+    return StripConfig(
+        remove_comments=cfg.remove_comments,
+        remove_docstrings=cfg.remove_docstrings,
+        remove_blank_lines=cfg.remove_blank_lines,
+        remove_type_annotations=cfg.remove_type_annotations,
+        remove_shebang=cfg.remove_shebang,
+        use_pass=cfg.use_pass,
+        keep_header=cfg.keep_header,
+        filename=filename,
+    )
+
+
+def _strip_source(source: str, strip_cfg: StripConfig) -> StripResult:
+    """Dispatch on the file name: notebooks are JSON, everything else is Python."""
+    if strip_cfg.filename.endswith(".ipynb"):
+        return strip_notebook(source, strip_cfg)
+    return strip_code(source, strip_cfg)
+
+
 def _process_file(
     py_file: Path,
     cfg: PyStripConfig,
 ) -> tuple[Path, StripResult]:
-    strip_cfg = StripConfig(
-        remove_comments=cfg.remove_comments,
-        remove_docstrings=cfg.remove_docstrings,
-        remove_blank_lines=cfg.remove_blank_lines,
-        remove_type_annotations=cfg.remove_type_annotations,
-        remove_shebang=cfg.remove_shebang,
-        use_pass=cfg.use_pass,
-        filename=str(py_file),
-    )
     source = py_file.read_text(encoding="utf-8")
-    result = strip_code(source, strip_cfg)
-    return py_file, result
+    return py_file, _strip_source(source, _strip_config(cfg, str(py_file)))
 
 
-def _process_stdin(cfg: PyStripConfig) -> StripResult:
-    strip_cfg = StripConfig(
-        remove_comments=cfg.remove_comments,
-        remove_docstrings=cfg.remove_docstrings,
-        remove_blank_lines=cfg.remove_blank_lines,
-        remove_type_annotations=cfg.remove_type_annotations,
-        remove_shebang=cfg.remove_shebang,
-        use_pass=cfg.use_pass,
-        filename="<stdin>",
-    )
+def _process_stdin(cfg: PyStripConfig, filename: str | None) -> StripResult:
     source = sys.stdin.read()
-    return strip_code(source, strip_cfg)
+    return _strip_source(source, _strip_config(cfg, filename or "<stdin>"))
 
 
 def main() -> None:
@@ -237,6 +287,8 @@ def _run(args: argparse.Namespace) -> None:
         raise ValueError("--output-dir cannot be used with stdin input")
     if use_stdin and args.diff:
         raise ValueError("--diff cannot be used with stdin input")
+    if args.stdin_filename is not None and not use_stdin:
+        raise ValueError("--stdin-filename requires '-' as the sole input path")
 
     # Discover project root
     project_root = find_project_root()
@@ -256,6 +308,7 @@ def _run(args: argparse.Namespace) -> None:
             recursive=args.recursive,
             exclude=cfg.exclude,
             exclude_glob=cfg.exclude_glob,
+            respect_gitignore=cfg.respect_gitignore,
         )
 
         if not py_files:
@@ -302,8 +355,8 @@ def _run(args: argparse.Namespace) -> None:
 
     if use_stdin:
         try:
-            stdin_result = _process_stdin(cfg)
-            results = [(Path("<stdin>"), stdin_result)]
+            stdin_result = _process_stdin(cfg, args.stdin_filename)
+            results = [(Path(args.stdin_filename or "<stdin>"), stdin_result)]
         except Exception as exc:
             if not args.continue_on_error:
                 raise

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://pystrip.github.io/pystrip/
+    about: Usage, configuration, output formats, and integrations.
+  - name: Question or idea
+    url: https://github.com/pystrip/pystrip/discussions
+    about: Ask a question or discuss an idea before opening an issue.

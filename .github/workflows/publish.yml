@@ -30,3 +30,27 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  major-tag:
+    name: Move the major version tag for the GitHub Action
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Point vMAJOR at this release
+        # `uses: pystrip/pystrip@v1` resolves to the newest 1.x release.
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "Not a version tag: $TAG"; exit 0 ;;
+          esac
+          major="${TAG%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$major" -m "Update $major to $TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$major" --force

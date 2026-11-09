@@ -1,0 +1,29 @@
+# pre-commit hook definitions for consumers.
+#
+# Add pystrip to another project's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/pystrip/pystrip
+#       rev: v1.4.0
+#       hooks:
+#         - id: pystrip
+#
+# The default `pystrip` hook strips in place and lets pre-commit fail the
+# commit when it rewrote a file. Use `pystrip-check` in CI-style setups to
+# verify without modifying anything.
+
+- id: pystrip
+  name: pystrip (strip comments & docstrings)
+  description: Remove comments, docstrings, and type annotations from Python source.
+  entry: pystrip
+  args: [--in-place]
+  language: python
+  types: [python]
+
+- id: pystrip-check
+  name: pystrip (check only)
+  description: Fail if any Python file still contains comments, docstrings, or type annotations.
+  entry: pystrip
+  args: [--check]
+  language: python
+  types: [python]

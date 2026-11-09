@@ -7,10 +7,13 @@
 [![Pull Requests](https://img.shields.io/github/issues-pr/pystrip/pystrip)](https://github.com/pystrip/pystrip/pulls)
 [![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)](https://github.com/astral-sh/ruff)
 [![Ty](https://img.shields.io/badge/type%20check-ty-7c3aed)](https://github.com/astral-sh/ty)
+[![Docs](https://img.shields.io/badge/docs-pystrip.github.io-deep%20purple)](https://pystrip.github.io/pystrip/)
 
 ![Banner](docs/banner.png)
 
 Python tool to safely remove comments, docstrings, and type annotations from source files using [libcst](https://libcst.readthedocs.io/).
+
+**Documentation: [pystrip.github.io/pystrip](https://pystrip.github.io/pystrip/)**
 
 ## Features
 
@@ -18,9 +21,15 @@ Python tool to safely remove comments, docstrings, and type annotations from sou
 - Removes docstrings (module, class, function)
 - Removes type annotations (parameter hints, return types, variable annotations)
 - Keeps regular string literals untouched
+- Inline pragmas: `# pystrip: keep` protects a comment, docstring, or annotated line; `# pystrip: skip-file` opts a file out
+- `--keep-header` preserves shebang, encoding cookie, and license banners
+- ruff-style `--select` / `--ignore` over the three rules, alongside the `--keep-*` flags
+- Handles `.pyi` stubs (annotations kept) and `.ipynb` notebooks (code cells only)
+- `--respect-gitignore` and `--stdin-filename` for editor integration
 - Supports output formats: `text`, `json`, `sarif`, `gitlab`, `github`
 - Works in CI with `--check`
 - Supports config discovery and parallel processing
+- Try it in the browser on the [playground](https://pystrip.github.io/pystrip/playground/)
 
 ## What pystrip will not remove
 
@@ -52,7 +61,7 @@ pystrip - < input.py > output.py
 ```
 
 ```bash
-usage: pystrip [-h] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments] [--keep-type-annotations] [--keep-blank] [--remove-shebang] [--use-pass] [--check]
+usage: pystrip [-h] [--version] [--exclude PATH] [--exclude-glob PATTERN] [--keep-docstrings] [--keep-comments] [--keep-type-annotations] [--keep-blank] [--remove-shebang] [--use-pass] [--check]
                [--diff] [--in-place] [--output-dir DIR] [--no-recursive] [--jobs N] [--config PATH] [--format {text,json,sarif,gitlab,github}] [--quiet] [--verbose]
                [--continue-on-error]
                [paths ...]
@@ -128,9 +137,40 @@ pystrip . --check --format github
 pystrip . --check --format gitlab > gl-code-quality-report.json
 ```
 
+## Integrations
+
+### pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/pystrip/pystrip
+    rev: v1.4.0
+    hooks:
+      - id: pystrip        # strip in place
+      # - id: pystrip-check  # verify only, writes nothing
+```
+
+### GitHub Actions
+
+```yaml
+- uses: pystrip/pystrip@v1
+  with:
+    paths: "src"
+    args: "--check --format github"
+```
+
+More, including GitLab CI, in the [integrations guide](https://pystrip.github.io/pystrip/integrations/).
+
+## Documentation
+
+Full documentation lives at **[pystrip.github.io/pystrip](https://pystrip.github.io/pystrip/)**:
+usage, configuration, output formats, integrations, the Python API, FAQ, and the
+[roadmap](https://pystrip.github.io/pystrip/roadmap/).
+
 ## Development
 
-Developer setup, quality checks, and contribution workflow are documented in [docs/development.md](docs/development.md).
+Developer setup, quality checks, and contribution workflow are documented in
+[docs/development.md](docs/development.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Exit Codes
 

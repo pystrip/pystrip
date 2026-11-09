@@ -1,0 +1,47 @@
+name: pystrip
+description: Remove or check comments, docstrings, and type annotations in Python source.
+author: Zeecka
+branding:
+  icon: scissors
+  color: purple
+
+inputs:
+  paths:
+    description: Space-separated files or directories to process.
+    required: false
+    default: "."
+  args:
+    description: >-
+      Extra arguments passed to pystrip, e.g. "--check --format github" for a
+      verification run, or "--in-place" to rewrite files.
+    required: false
+    default: "--check --format github"
+  version:
+    description: pystrip version to install (e.g. "1.4.0"). Defaults to the latest release.
+    required: false
+    default: ""
+  python-version:
+    description: Python version used to run pystrip.
+    required: false
+    default: "3.11"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install pystrip
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          python -m pip install --quiet "pystrip==${{ inputs.version }}"
+        else
+          python -m pip install --quiet pystrip
+        fi
+
+    - name: Run pystrip
+      shell: bash
+      run: pystrip ${{ inputs.paths }} ${{ inputs.args }}
