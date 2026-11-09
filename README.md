@@ -144,7 +144,7 @@ pystrip . --check --format gitlab > gl-code-quality-report.json
 ```yaml
 repos:
   - repo: https://github.com/pystrip/pystrip
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: pystrip        # strip in place
       # - id: pystrip-check  # verify only, writes nothing

@@ -17,7 +17,7 @@ inputs:
     required: false
     default: "--check --format github"
   version:
-    description: pystrip version to install (e.g. "1.4.0"). Defaults to the latest release.
+    description: pystrip version to install (e.g. "1.5.0"). Defaults to the latest release.
     required: false
     default: ""
   python-version:

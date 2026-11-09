@@ -8,7 +8,7 @@ project's `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/pystrip/pystrip
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: pystrip
 ```

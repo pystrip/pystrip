@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-09
+
 ### Added
 
 - Inline pragmas: `# pystrip: keep` protects the comment it sits in or, as a

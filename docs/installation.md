@@ -41,7 +41,7 @@ pystrip --help
 For reproducible CI, pin an exact version:
 
 ```bash
-pip install "pystrip==1.4.0"
+pip install "pystrip==1.5.0"
 ```
 
 See the [changelog](changelog.md) for released versions.
