@@ -33,6 +33,8 @@ jobs:
 
   major-tag:
     name: Move the major version tag for the GitHub Action
+    # Only after PyPI accepted the release, so `@v1` never points at an unpublished version.
+    needs: publish
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -42,6 +42,12 @@ All notable changes to this project will be documented in this file.
 - Directory discovery now includes `.pyi` and `.ipynb` files in addition to
   `.py`. Exclude them with `--exclude-glob "*.ipynb"` if that is unwanted.
 
+### Fixed
+
+- Release builds take their version only from `vX.Y.Z` tags, so the moving `v1`
+  Action tag can no longer make a release build as version `1`. The `v1` tag now
+  moves only after the PyPI upload succeeds.
+
 ## [1.4.0] - 2026-11-06
 
 ### Fixed
